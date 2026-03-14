@@ -57,7 +57,7 @@ When Claude suggests tasks, they are automatically added to your planner.
 
 That's all 11 files! Here's your final checklist before loading:
 ```
-activify-extension/
+activify/
 ├── manifest.json          ✓
 ├── icons/
 │   ├── icon16.png         ✓
