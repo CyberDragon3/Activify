@@ -170,7 +170,6 @@ function bindSettings() {
   const statusEl = document.getElementById('api-key-status');
   const clearTasksBtn = document.getElementById('btn-clear-tasks');
 
-  // Open settings
   document.getElementById('btn-settings').addEventListener('click', async () => {
     const result = await chrome.storage.local.get('groqApiKey');
     if (result.groqApiKey) {
@@ -183,26 +182,23 @@ function bindSettings() {
     overlay.classList.remove('hidden');
   });
 
-  // Close settings
   closeBtn.addEventListener('click', () => overlay.classList.add('hidden'));
   overlay.addEventListener('click', e => {
     if (e.target === overlay) overlay.classList.add('hidden');
   });
 
-  // Save API key
   saveKeyBtn.addEventListener('click', async () => {
     const key = apiKeyInput.value.trim();
     if (!key) {
       showKeyStatus('Please enter an API key', 'error');
       return;
     }
-        await chrome.storage.local.set({ groqApiKey: key });
+    await chrome.storage.local.set({ groqApiKey: key });
     apiKeyInput.value = '';
     apiKeyInput.placeholder = '••••••••••••••••••••' + key.slice(-4);
     showKeyStatus('✓ API key saved!', 'success');
   });
 
-  // Save reminder setting
   document.getElementById('field-reminder-mins').addEventListener('change', async (e) => {
     const result = await chrome.storage.local.get('settings');
     const current = result.settings || {};
@@ -211,7 +207,6 @@ function bindSettings() {
     });
   });
 
-  // Clear tasks
   clearTasksBtn.addEventListener('click', async () => {
     if (!confirm('Clear all tasks? This cannot be undone.')) return;
     await chrome.storage.local.set({ tasks: [] });
@@ -229,6 +224,47 @@ function bindSettings() {
 // ─── Render all ───────────────────────────────────────────────────────────────
 async function renderAll() {
   await Promise.all([renderToday(), renderWeekDay(), renderUpcoming()]);
+}
+
+// ─── Streak ───────────────────────────────────────────────────────────────────
+async function updateStreak(todayTasks) {
+  const todayStr = today();
+  const allDone = todayTasks.length > 0 && todayTasks.every(t => t.completed);
+
+  const result = await chrome.storage.local.get('streakData');
+  let { count = 0, lastCompletedDate = '' } = result.streakData || {};
+
+  const yesterday = formatDate(new Date(Date.now() - 86400000));
+
+  if (allDone) {
+    // All tasks done today — earn or maintain streak
+    if (lastCompletedDate !== todayStr) {
+      count = lastCompletedDate === yesterday ? count + 1 : 1;
+      await chrome.storage.local.set({ streakData: { count, lastCompletedDate: todayStr } });
+    }
+  } else {
+    // Not all done — if streak was earned today, revoke it
+    if (lastCompletedDate === todayStr) {
+      count = count > 1 ? count - 1 : 0;
+      const revertDate = count > 0 ? yesterday : '';
+      await chrome.storage.local.set({ streakData: { count, lastCompletedDate: revertDate } });
+    } else if (lastCompletedDate !== yesterday) {
+      // Streak is stale (missed a day)
+      count = 0;
+    }
+  }
+
+  const badge = document.getElementById('streak-badge');
+  const countEl = document.getElementById('streak-count');
+
+  if (count > 0) {
+    badge.classList.remove('streak-frozen');
+    badge.classList.add('streak-active');
+  } else {
+    badge.classList.remove('streak-active');
+    badge.classList.add('streak-frozen');
+  }
+  countEl.textContent = count;
 }
 
 // ─── TODAY VIEW ───────────────────────────────────────────────────────────────
@@ -259,6 +295,8 @@ async function renderToday() {
     renderAssignmentTaskList(dueListEl, dueTodayAssignments, true);
     contentEl.appendChild(dueListEl);
   }
+
+  await updateStreak(todayTasks);
 }
 
 function makeLabel(text, withAdd = false) {
@@ -331,7 +369,7 @@ async function renderWeekDay() {
 // ─── CALENDAR GRID ────────────────────────────────────────────────────────────
 const CAL_START_HOUR = 6;
 const CAL_END_HOUR   = 23;
-const HOUR_HEIGHT    = 56;
+const HOUR_HEIGHT    = 80;
 
 function buildCalendarGrid(tasks, assignments) {
   const wrapper = document.createElement('div');
@@ -341,6 +379,7 @@ function buildCalendarGrid(tasks, assignments) {
   grid.className = 'cal-grid';
   grid.style.height = `${(CAL_END_HOUR - CAL_START_HOUR) * HOUR_HEIGHT}px`;
 
+  // Hour lines and labels
   for (let h = CAL_START_HOUR; h < CAL_END_HOUR; h++) {
     const top = (h - CAL_START_HOUR) * HOUR_HEIGHT;
     const label = document.createElement('div');
@@ -354,6 +393,7 @@ function buildCalendarGrid(tasks, assignments) {
     grid.appendChild(line);
   }
 
+  // Now line
   const now = new Date();
   const nowMins = now.getHours() * 60 + now.getMinutes();
   const startMins = CAL_START_HOUR * 60;
@@ -370,19 +410,55 @@ function buildCalendarGrid(tasks, assignments) {
     grid.appendChild(nowLine);
   }
 
+  // ── Overlap-aware block layout ──────────────────────────────────────────
+  const blockData = [];
   tasks.forEach(task => {
     if (!task.startTime) return;
     const [h, m] = task.startTime.split(':').map(Number);
     const taskMins = h * 60 + m;
     if (taskMins < startMins || taskMins > endMins) return;
+    const duration = task.durationMins || 45;
+    blockData.push({ task, taskMins, endMins: taskMins + duration, col: 0, totalCols: 1 });
+  });
+
+  blockData.sort((a, b) => a.taskMins - b.taskMins);
+
+  // Assign columns to overlapping blocks
+  blockData.forEach((item, i) => {
+    item.col = 0;
+    const usedCols = new Set();
+    for (let j = 0; j < i; j++) {
+      if (blockData[j].endMins > item.taskMins) {
+        usedCols.add(blockData[j].col);
+      }
+    }
+    while (usedCols.has(item.col)) item.col++;
+
+    // Propagate totalCols to all blocks in this overlap group
+    const maxCol = item.col + 1;
+    for (let j = 0; j <= i; j++) {
+      if (blockData[j].endMins > item.taskMins && blockData[j].taskMins < item.endMins) {
+        blockData[j].totalCols = Math.max(blockData[j].totalCols, maxCol);
+        item.totalCols = Math.max(item.totalCols, blockData[j].totalCols);
+      }
+    }
+  });
+
+  blockData.forEach(({ task, taskMins, col, totalCols }) => {
     const top = ((taskMins - startMins) / 60) * HOUR_HEIGHT;
     const duration = task.durationMins || 45;
-    const height = Math.max((duration / 60) * HOUR_HEIGHT, 28);
+    const height = Math.max((duration / 60) * HOUR_HEIGHT, 20) - 3;
+    const colWidth = 100 / totalCols;
+    const leftPct = col * colWidth;
+
     const block = document.createElement('div');
     block.className = 'cal-block' + (task.completed ? ' done' : '');
     block.style.top = `${top}px`;
     block.style.height = `${height}px`;
+    block.style.left = `${leftPct}%`;
+    block.style.right = `${100 - leftPct - colWidth + 0.5}%`;
     block.style.background = categoryColor(task.category);
+    block.style.borderLeftColor = categoryBorderColor(task.category);
     block.innerHTML = `
       <div class="cal-block-title">${task.title}</div>
       <div class="cal-block-time">${fmtTime(task.startTime)}${duration ? ' · ' + duration + 'min' : ''}</div>
@@ -395,6 +471,7 @@ function buildCalendarGrid(tasks, assignments) {
     grid.appendChild(block);
   });
 
+  // Assignment due markers
   assignments.forEach(a => {
     const h = a.dueTime ? parseInt(a.dueTime.split(':')[0]) : null;
     const m = a.dueTime ? parseInt(a.dueTime.split(':')[1]) : null;
@@ -429,11 +506,20 @@ function fmtHour(h) {
 
 function categoryColor(cat) {
   return {
-    assignment:      'rgba(66,133,244,0.15)',
-    study:           'rgba(45,106,79,0.15)',
-    extracurricular: 'rgba(90,62,133,0.15)',
-    manual:          'rgba(156,149,144,0.12)',
-  }[cat] || 'rgba(45,106,79,0.15)';
+    assignment:      'rgba(66,133,244,0.22)',
+    study:           'rgba(45,160,100,0.22)',
+    extracurricular: 'rgba(140,90,220,0.22)',
+    manual:          'rgba(180,180,180,0.15)',
+  }[cat] || 'rgba(45,160,100,0.22)';
+}
+
+function categoryBorderColor(cat) {
+  return {
+    assignment:      'rgba(66,133,244,0.8)',
+    study:           'rgba(45,160,100,0.8)',
+    extracurricular: 'rgba(140,90,220,0.8)',
+    manual:          'rgba(180,180,180,0.5)',
+  }[cat] || 'rgba(45,160,100,0.8)';
 }
 
 // ─── UPCOMING VIEW ────────────────────────────────────────────────────────────
@@ -508,6 +594,7 @@ function buildTaskCard(task) {
     await upsertTask(task);
     card.classList.toggle('done', task.completed);
     check.classList.toggle('checked', task.completed);
+    await updateStreak(await getTasks().then(t => t.filter(t => t.date === today())));
   });
 
   const body = document.createElement('div');
@@ -545,6 +632,7 @@ function buildTaskCard(task) {
   delBtn.addEventListener('click', async () => {
     await deleteTask(task.id);
     card.remove();
+    await updateStreak(await getTasks().then(t => t.filter(t => t.date === today())));
   });
   actions.appendChild(delBtn);
 
