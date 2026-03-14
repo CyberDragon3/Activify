@@ -1,4 +1,4 @@
-# Planr – Student Planner Chrome Extension
+# Activify – Student Planner Chrome Extension
 
 Auto-scans Google Classroom, Canvas, and Schoology to build a daily planner
 as a Chrome side panel, with an AI assistant powered by Claude.
@@ -7,7 +7,7 @@ as a Chrome side panel, with an AI assistant powered by Claude.
 
 ## Project Structure
 ```
-planr-extension/
+activify-extension/
 ├── manifest.json
 ├── icons/
 │   ├── icon16.png
@@ -35,7 +35,7 @@ planr-extension/
 1. Open `chrome://extensions`
 2. Enable **Developer mode** (top-right toggle)
 3. Click **Load unpacked**
-4. Select the `planr-extension/` folder
+4. Select the `activify-extension/` folder
 
 ---
 
@@ -57,7 +57,7 @@ When Claude suggests tasks, they are automatically added to your planner.
 
 That's all 11 files! Here's your final checklist before loading:
 ```
-planr-extension/
+activify-extension/
 ├── manifest.json          ✓
 ├── icons/
 │   ├── icon16.png         ✓

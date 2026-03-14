@@ -1,6 +1,6 @@
 {
   "manifest_version": 3,
-  "name": "Planr – Student Planner",
+  "name": "Activify – Student Planner",
   "version": "0.1.0",
   "description": "Auto-scans Google Classroom, Canvas, and Schoology to build your daily planner.",
 
@@ -48,7 +48,7 @@
   },
 
   "action": {
-    "default_title": "Open Planr",
+    "default_title": "Open Activify",
     "default_icon": {
       "16": "icons/icon16.png",
       "48": "icons/icon48.png",

@@ -2,7 +2,7 @@
 import { mergeAssignments, getTasks, getSettings, setLastScan } from '../shared/storage.js';
 
 chrome.runtime.onInstalled.addListener(() => {
-  console.log('[Planr] Installed. Setting up alarms...');
+  console.log('[Activify] Installed. Setting up alarms...');
   setupAlarms();
 });
 
@@ -29,7 +29,7 @@ chrome.alarms.onAlarm.addListener(async (alarm) => {
     chrome.notifications.create({
       type: 'basic',
       iconUrl: '../icons/icon48.png',
-      title: '⏰ Planr Reminder',
+      title: '⏰ Activify Reminder',
       message: `Starting soon: ${task.title}`,
       priority: 2,
     });
@@ -48,7 +48,7 @@ async function triggerScanOnSchoolSites() {
     const match = scriptMap.find(s => s.pattern.test(tab.url));
     if (!match) continue;
     try {
-      await chrome.tabs.sendMessage(tab.id, { type: 'PLANR_SCAN' });
+      await chrome.tabs.sendMessage(tab.id, { type: 'ACTIVIFY_SCAN' });
     } catch {
       try {
         await chrome.scripting.executeScript({
@@ -56,7 +56,7 @@ async function triggerScanOnSchoolSites() {
           files: [match.file],
         });
       } catch (e) {
-        console.error('[Planr] Failed to inject:', e);
+        console.error('[Activify] Failed to inject:', e);
       }
     }
   }
@@ -85,19 +85,19 @@ async function checkReminders() {
 }
 
 chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
-  if (message.type === 'PLANR_ASSIGNMENTS_SCRAPED') {
+  if (message.type === 'ACTIVIFY_ASSIGNMENTS_SCRAPED') {
     const { source, assignments } = message;
     mergeAssignments(assignments)
       .then(async () => {
         await setLastScan(source);
-        chrome.runtime.sendMessage({ type: 'PLANR_REFRESH' }).catch(() => {});
+        chrome.runtime.sendMessage({ type: 'ACTIVIFY_REFRESH' }).catch(() => {});
         sendResponse({ ok: true });
       })
       .catch(err => sendResponse({ ok: false, error: err.message }));
     return true;
   }
 
-  if (message.type === 'PLANR_REQUEST_SCAN') {
+  if (message.type === 'ACTIVIFY_REQUEST_SCAN') {
     triggerScanOnSchoolSites().then(() => sendResponse({ ok: true }));
     return true;
   }

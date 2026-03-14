@@ -30,7 +30,7 @@ async function init() {
   await renderAll();
 
   chrome.runtime.onMessage.addListener((msg) => {
-    if (msg.type === 'PLANR_REFRESH') renderAll();
+    if (msg.type === 'ACTIVIFY_REFRESH') renderAll();
   });
 }
 
@@ -144,7 +144,7 @@ function bindScan() {
   btn.addEventListener('click', async () => {
     btn.classList.add('spinning');
     showScanBanner('Scanning school sites...');
-    chrome.runtime.sendMessage({ type: 'PLANR_REQUEST_SCAN' }, () => {
+    chrome.runtime.sendMessage({ type: 'ACTIVIFY_REQUEST_SCAN' }, () => {
       setTimeout(() => {
         btn.classList.remove('spinning');
         showScanBanner('Scan complete ✓', 2000);

@@ -118,7 +118,7 @@
     const assignments = scrape();
     if (assignments.length === 0) return;
     chrome.runtime.sendMessage({
-      type: 'PLANR_ASSIGNMENTS_SCRAPED',
+      type: 'ACTIVIFY_ASSIGNMENTS_SCRAPED',
       source: SOURCE,
       assignments,
     });
@@ -128,6 +128,6 @@
   document.addEventListener('schoology:navigate', () => setTimeout(run, 800));
 
   chrome.runtime.onMessage.addListener((msg) => {
-    if (msg.type === 'PLANR_SCAN') run();
+    if (msg.type === 'ACTIVIFY_SCAN') run();
   });
 })();

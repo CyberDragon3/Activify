@@ -45,7 +45,7 @@ ${todayTasks || 'Nothing scheduled yet.'}
 }
 
 // ─── System prompt ────────────────────────────────────────────────────────────
-const SYSTEM_PROMPT = `You are Planr AI, a scheduling assistant built into a Chrome extension for high school students. You have access to the student's assignments scraped from Google Classroom, Canvas, and Schoology.
+const SYSTEM_PROMPT = `You are Activyif AI, a scheduling assistant built into a Chrome extension for high school students. You have access to the student's assignments scraped from Google Classroom, Canvas, and Schoology.
 
 Your job is to help students:
 1. Plan their day by scheduling study blocks
@@ -121,7 +121,7 @@ export async function applyTasksFromResponse(responseText) {
   try {
     suggested = JSON.parse(match[1]);
   } catch (e) {
-    console.error('[Planr AI] Failed to parse JSON block:', e);
+    console.error('[Activify AI] Failed to parse JSON block:', e);
     return [];
   }
 
@@ -173,7 +173,7 @@ export async function applyTasksFromResponse(responseText) {
 
     return tasksToApply;
   } catch (e) {
-    console.error('[Planr AI] Failed to apply tasks:', e);
+    console.error('[Activify AI] Failed to apply tasks:', e);
     return [];
   }
 }

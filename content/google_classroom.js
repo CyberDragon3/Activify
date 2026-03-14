@@ -1,6 +1,6 @@
 // content/google_classroom.js
 (function () {
-  console.log("PLANR: classroom script loaded");
+  console.log("ACTIVIFY: classroom script loaded");
   const SOURCE = 'google_classroom';
 
   function makeId(course, title) {
@@ -108,8 +108,8 @@
     }
 
     // debug visibility
-    console.log('PLANR: candidate clickable elements found', candidateCount);
-    console.log('PLANR: assignment hrefs filtered & deduped found', links.length);
+    console.log('ACTIVIFY: candidate clickable elements found', candidateCount);
+    console.log('ACTIVIFY: assignment hrefs filtered & deduped found', links.length);
 
     // regex helpers
     const monthNames = '(?:Jan|Feb|Mar|Apr|May|Jun|Jul|Aug|Sep|Oct|Nov|Dec)[a-z]*\\.?';
@@ -214,7 +214,7 @@
           scannedAt: Date.now()
         });
       } catch (err) {
-        console.warn('PLANR: error scraping one link', err);
+        console.warn('ACTIVIFY: error scraping one link', err);
         continue;
       }
     }
@@ -225,17 +225,17 @@
   function run() {
     const assignments = scrape();
     if (!assignments.length) {
-      console.log('PLANR: no assignments scraped');
+      console.log('ACTIVIFY: no assignments scraped');
       chrome.runtime.sendMessage({
-        type: 'PLANR_ASSIGNMENTS_SCRAPED',
+        type: 'ACTIVIFY_ASSIGNMENTS_SCRAPED',
         source: SOURCE,
         assignments: [],
       });
       return;
     }
-    console.log('PLANR: scraped assignments', assignments.length, assignments);
+    console.log('ACTIVIFY: scraped assignments', assignments.length, assignments);
     chrome.runtime.sendMessage({
-      type: 'PLANR_ASSIGNMENTS_SCRAPED',
+      type: 'ACTIVIFY_ASSIGNMENTS_SCRAPED',
       source: SOURCE,
       assignments,
     });
@@ -256,7 +256,7 @@
 
   // expose debug API
   try {
-    window.__PLANR__ = {
+    window.__ACTIVIFY__ = {
       scrape,
       run,
       toISOFromMonthDay,
@@ -278,6 +278,6 @@
   }).observe(document.body, { childList: true, subtree: true });
 
   chrome.runtime.onMessage.addListener(msg => {
-    if (msg && msg.type === 'PLANR_SCAN') run();
+    if (msg && msg.type === 'ACTIVIFY_SCAN') run();
   });
 })();
