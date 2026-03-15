@@ -237,19 +237,16 @@ async function updateStreak(todayTasks) {
   const yesterday = formatDate(new Date(Date.now() - 86400000));
 
   if (allDone) {
-    // All tasks done today — earn or maintain streak
     if (lastCompletedDate !== todayStr) {
       count = lastCompletedDate === yesterday ? count + 1 : 1;
       await chrome.storage.local.set({ streakData: { count, lastCompletedDate: todayStr } });
     }
   } else {
-    // Not all done — if streak was earned today, revoke it
     if (lastCompletedDate === todayStr) {
       count = count > 1 ? count - 1 : 0;
       const revertDate = count > 0 ? yesterday : '';
       await chrome.storage.local.set({ streakData: { count, lastCompletedDate: revertDate } });
     } else if (lastCompletedDate !== yesterday) {
-      // Streak is stale (missed a day)
       count = 0;
     }
   }
@@ -265,6 +262,158 @@ async function updateStreak(todayTasks) {
     badge.classList.add('streak-frozen');
   }
   countEl.textContent = count;
+}
+
+// ─── Drag-to-strike ───────────────────────────────────────────────────────────
+function bindDragStrike(card, titleWrap, canvas, task, undoBtn) {
+  const ctx = canvas.getContext('2d');
+  let dragging = false;
+  let startX = 0;
+  let lastX = 0;
+  let lastTime = 0;
+  let points = [];
+  const COMMIT_RATIO = 0.88;
+
+  function resizeCanvas() {
+    canvas.width = titleWrap.offsetWidth;
+    canvas.height = titleWrap.offsetHeight;
+  }
+
+  function drawLine(pts, progress) {
+    resizeCanvas();
+    ctx.clearRect(0, 0, canvas.width, canvas.height);
+    if (pts.length < 2) return;
+
+    const midY = canvas.height / 2;
+    ctx.save();
+    ctx.lineWidth = 2.5;
+    ctx.lineCap = 'round';
+    ctx.lineJoin = 'round';
+
+    const grad = ctx.createLinearGradient(0, 0, canvas.width * progress, 0);
+    grad.addColorStop(0, 'hsl(210, 100%, 65%)');
+    grad.addColorStop(0.5, 'hsl(180, 100%, 60%)');
+    grad.addColorStop(1, 'hsl(50, 100%, 65%)');
+    ctx.strokeStyle = grad;
+
+    ctx.beginPath();
+    ctx.moveTo(pts[0].x, midY + pts[0].jitter);
+    for (let i = 1; i < pts.length; i++) {
+      ctx.lineTo(pts[i].x, midY + pts[i].jitter);
+    }
+    ctx.stroke();
+
+    ctx.globalAlpha = 0.3;
+    ctx.lineWidth = 6;
+    ctx.filter = 'blur(2px)';
+    ctx.strokeStyle = 'hsl(210, 100%, 70%)';
+    ctx.beginPath();
+    ctx.moveTo(pts[0].x, midY + pts[0].jitter);
+    for (let i = 1; i < pts.length; i++) {
+      ctx.lineTo(pts[i].x, midY + pts[i].jitter);
+    }
+    ctx.stroke();
+    ctx.restore();
+  }
+
+  function drawCommitted() {
+    resizeCanvas();
+    ctx.clearRect(0, 0, canvas.width, canvas.height);
+    const midY = canvas.height / 2;
+    const grad = ctx.createLinearGradient(0, 0, canvas.width, 0);
+    grad.addColorStop(0, 'hsl(210, 100%, 65%)');
+    grad.addColorStop(0.5, 'hsl(180, 100%, 60%)');
+    grad.addColorStop(1, 'hsl(50, 100%, 65%)');
+    ctx.save();
+    ctx.lineWidth = 2;
+    ctx.lineCap = 'round';
+    ctx.strokeStyle = grad;
+    ctx.beginPath();
+    ctx.moveTo(0, midY);
+    ctx.lineTo(canvas.width, midY);
+    ctx.stroke();
+    ctx.restore();
+  }
+
+  // ── listeners on CARD not titleWrap ──
+  card.addEventListener('pointerdown', (e) => {
+  e.preventDefault();
+  if (task.completed) return;
+  if (e.target.closest('button')) return;
+  const cardRect = card.getBoundingClientRect();
+  const titleRect = titleWrap.getBoundingClientRect();
+  dragging = true;
+  // startX relative to card left edge
+  startX = e.clientX - cardRect.left;
+  // offset so line starts at left edge of titleWrap
+  const titleOffset = titleRect.left - cardRect.left;
+  startX = Math.max(0, startX - titleOffset);
+  lastX = startX;
+  lastTime = Date.now();
+  points = [{ x: startX, jitter: 0 }];
+  resizeCanvas();
+  card.setPointerCapture(e.pointerId);
+});
+
+card.addEventListener('pointermove', (e) => {
+  if (!dragging) return;
+  const cardRect = card.getBoundingClientRect();
+  const titleRect = titleWrap.getBoundingClientRect();
+  const titleOffset = titleRect.left - cardRect.left;
+  const x = Math.max(0, (e.clientX - cardRect.left) - titleOffset);
+
+  if (x < lastX - 5) {
+    points = [];
+    ctx.clearRect(0, 0, canvas.width, canvas.height);
+    lastX = x;
+    return;
+  }
+
+  const now = Date.now();
+  const speed = Math.abs(x - lastX) / Math.max(now - lastTime, 1);
+  const jitter = Math.min(speed * 1.5, 3) * (Math.random() - 0.5) * 2;
+
+  points.push({ x, jitter });
+  lastX = x;
+  lastTime = now;
+
+  const progress = Math.min((x - startX) / (canvas.width - startX), 1);
+  drawLine(points, progress);
+});
+
+card.addEventListener('pointerup', async (e) => {
+  if (!dragging) return;
+  dragging = false;
+
+  const cardRect = card.getBoundingClientRect();
+  const titleRect = titleWrap.getBoundingClientRect();
+  const titleOffset = titleRect.left - cardRect.left;
+  const x = Math.max(0, (e.clientX - cardRect.left) - titleOffset);
+  const progress = (x - startX) / (canvas.width - startX);
+
+  if (progress >= COMMIT_RATIO) {
+    drawCommitted();
+    card.classList.add('shimmer');
+    setTimeout(() => card.classList.remove('shimmer'), 500);
+
+    task.completed = true;
+    await upsertTask(task);
+    undoBtn.classList.add('visible');
+
+    card.style.transition = 'opacity 0.3s ease';
+    setTimeout(() => { card.style.opacity = '0.35'; }, 400);
+    getTasks().then(t => updateStreak(t.filter(t => t.date === today())));
+  } else {
+    ctx.clearRect(0, 0, canvas.width, canvas.height);
+    points = [];
+  }
+});
+
+  card.addEventListener('pointercancel', () => {
+    dragging = false;
+    ctx.clearRect(0, 0, canvas.width, canvas.height);
+    points = [];
+  });
 }
 
 // ─── TODAY VIEW ───────────────────────────────────────────────────────────────
@@ -379,7 +528,6 @@ function buildCalendarGrid(tasks, assignments) {
   grid.className = 'cal-grid';
   grid.style.height = `${(CAL_END_HOUR - CAL_START_HOUR) * HOUR_HEIGHT}px`;
 
-  // Hour lines and labels
   for (let h = CAL_START_HOUR; h < CAL_END_HOUR; h++) {
     const top = (h - CAL_START_HOUR) * HOUR_HEIGHT;
     const label = document.createElement('div');
@@ -393,7 +541,6 @@ function buildCalendarGrid(tasks, assignments) {
     grid.appendChild(line);
   }
 
-  // Now line
   const now = new Date();
   const nowMins = now.getHours() * 60 + now.getMinutes();
   const startMins = CAL_START_HOUR * 60;
@@ -410,7 +557,6 @@ function buildCalendarGrid(tasks, assignments) {
     grid.appendChild(nowLine);
   }
 
-  // ── Overlap-aware block layout ──────────────────────────────────────────
   const blockData = [];
   tasks.forEach(task => {
     if (!task.startTime) return;
@@ -423,31 +569,30 @@ function buildCalendarGrid(tasks, assignments) {
 
   blockData.sort((a, b) => a.taskMins - b.taskMins);
 
-  // Assign columns to overlapping blocks
   blockData.forEach((item, i) => {
     item.col = 0;
     const usedCols = new Set();
     for (let j = 0; j < i; j++) {
-      if (blockData[j].endMins > item.taskMins) {
-        usedCols.add(blockData[j].col);
-      }
+      if (blockData[j].endMins > item.taskMins) usedCols.add(blockData[j].col);
     }
     while (usedCols.has(item.col)) item.col++;
+  });
 
-    // Propagate totalCols to all blocks in this overlap group
-    const maxCol = item.col + 1;
-    for (let j = 0; j <= i; j++) {
-      if (blockData[j].endMins > item.taskMins && blockData[j].taskMins < item.endMins) {
-        blockData[j].totalCols = Math.max(blockData[j].totalCols, maxCol);
-        item.totalCols = Math.max(item.totalCols, blockData[j].totalCols);
+  blockData.forEach((item, i) => {
+    let maxCol = item.col;
+    for (let j = 0; j < blockData.length; j++) {
+      if (j === i) continue;
+      if (blockData[j].taskMins < item.endMins && blockData[j].endMins > item.taskMins) {
+        maxCol = Math.max(maxCol, blockData[j].col);
       }
     }
+    item.totalCols = maxCol + 1;
   });
 
   blockData.forEach(({ task, taskMins, col, totalCols }) => {
     const top = ((taskMins - startMins) / 60) * HOUR_HEIGHT;
     const duration = task.durationMins || 45;
-    const height = Math.max((duration / 60) * HOUR_HEIGHT, 20) - 3;
+    const height = Math.max((duration / 60) * HOUR_HEIGHT, 16) - 3;
     const colWidth = 100 / totalCols;
     const leftPct = col * colWidth;
 
@@ -471,7 +616,6 @@ function buildCalendarGrid(tasks, assignments) {
     grid.appendChild(block);
   });
 
-  // Assignment due markers
   assignments.forEach(a => {
     const h = a.dueTime ? parseInt(a.dueTime.split(':')[0]) : null;
     const m = a.dueTime ? parseInt(a.dueTime.split(':')[1]) : null;
@@ -587,22 +731,23 @@ function buildTaskCard(task) {
   const card = document.createElement('div');
   card.className = 'task-card' + (task.completed ? ' done' : '');
 
-  const check = document.createElement('div');
-  check.className = 'task-check' + (task.completed ? ' checked' : '');
-  check.addEventListener('click', async () => {
-    task.completed = !task.completed;
-    await upsertTask(task);
-    card.classList.toggle('done', task.completed);
-    check.classList.toggle('checked', task.completed);
-    await updateStreak(await getTasks().then(t => t.filter(t => t.date === today())));
-  });
-
   const body = document.createElement('div');
   body.className = 'task-body';
+
+  // Title wrapped for canvas overlay
+  const titleWrap = document.createElement('div');
+  titleWrap.className = 'task-title-wrap';
+  titleWrap.style.position = 'relative';
 
   const title = document.createElement('div');
   title.className = 'task-title';
   title.textContent = task.title;
+
+  const canvas = document.createElement('canvas');
+  canvas.className = 'strike-canvas';
+
+  titleWrap.appendChild(title);
+  titleWrap.appendChild(canvas);
 
   const meta = document.createElement('div');
   meta.className = 'task-meta';
@@ -619,26 +764,72 @@ function buildTaskCard(task) {
   dot.className = `task-source-dot source-${task.category || 'manual'}`;
   meta.appendChild(dot);
 
-  body.appendChild(title);
+  body.appendChild(titleWrap);
   body.appendChild(meta);
 
   const actions = document.createElement('div');
   actions.className = 'task-actions';
 
+  // Undo button — hidden until committed
+  const undoBtn = document.createElement('button');
+  undoBtn.className = 'task-btn undo';
+  undoBtn.title = 'Undo';
+  undoBtn.textContent = '↩';
+  undoBtn.addEventListener('click', async (e) => {
+  e.stopPropagation();
+  task.completed = false;
+  await upsertTask(task);
+  card.style.opacity = '1';
+  card.style.transition = '';
+  card.classList.remove('fading', 'shimmer', 'struck');
+  const ctx = canvas.getContext('2d');
+  ctx.clearRect(0, 0, canvas.width, canvas.height);
+  undoBtn.classList.remove('visible');
+  await updateStreak(await getTasks().then(t => t.filter(t => t.date === today())));
+});
+
   const delBtn = document.createElement('button');
   delBtn.className = 'task-btn danger';
   delBtn.title = 'Delete';
   delBtn.innerHTML = '✕';
-  delBtn.addEventListener('click', async () => {
+  delBtn.addEventListener('click', async (e) => {
+    e.stopPropagation();
     await deleteTask(task.id);
     card.remove();
     await updateStreak(await getTasks().then(t => t.filter(t => t.date === today())));
   });
+
+  actions.appendChild(undoBtn);
   actions.appendChild(delBtn);
 
-  card.appendChild(check);
   card.appendChild(body);
   card.appendChild(actions);
+
+  // Draw committed line if already done
+  if (task.completed) {
+    card.style.opacity = '0.35';
+    requestAnimationFrame(() => {
+      const ctx = canvas.getContext('2d');
+      canvas.width = titleWrap.offsetWidth;
+      canvas.height = titleWrap.offsetHeight;
+      const midY = canvas.height / 2;
+      const grad = ctx.createLinearGradient(0, 0, canvas.width, 0);
+      grad.addColorStop(0, 'hsl(210, 100%, 65%)');
+      grad.addColorStop(0.5, 'hsl(180, 100%, 60%)');
+      grad.addColorStop(1, 'hsl(50, 100%, 65%)');
+      ctx.lineWidth = 2;
+      ctx.lineCap = 'round';
+      ctx.strokeStyle = grad;
+      ctx.beginPath();
+      ctx.moveTo(0, midY);
+      ctx.lineTo(canvas.width, midY);
+      ctx.stroke();
+      undoBtn.classList.add('visible');
+    });
+  }
+
+  bindDragStrike(card, titleWrap, canvas, task, undoBtn);
+
   return card;
 }
 
