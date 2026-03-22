@@ -1,0 +1,73 @@
+{
+  "manifest_version": 3,
+  "name": "Activify – Student Planner",
+  "version": "0.1.0",
+  "description": "Auto-scans Google Classroom, Canvas, and Schoology to build your daily planner.",
+
+  "permissions": [
+  "sidePanel",
+  "storage",
+  "alarms",
+  "notifications",
+  "tabs",
+  "scripting",
+  "identity"
+],
+
+  "host_permissions": [
+    "https://*.googleapis.com/*",
+    "https://accounts.google.com/*",
+    "https://*.supabase.co/*",
+    "https://classroom.google.com/*",
+    "https://*.instructure.com/*",
+    "https://*.schoology.com/*",
+    "https://api.groq.com/*"
+  ],
+
+  "background": {
+  "service_worker": "background/service_worker.js",
+  "type": "module"
+},
+
+  "content_scripts": [
+    {
+      "matches": ["https://classroom.google.com/*"],
+      "js": ["content/google_classroom.js"],
+      "run_at": "document_idle"
+    },
+    {
+      "matches": ["https://*.instructure.com/*"],
+      "js": ["content/canvas.js"],
+      "run_at": "document_idle"
+    },
+    {
+      "matches": ["https://*.schoology.com/*"],
+      "js": ["content/schoology.js"],
+      "run_at": "document_idle"
+    }
+  ],
+
+  "side_panel": {
+    "default_path": "sidepanel/auth.html"
+  },
+
+  "action": {
+    "default_title": "Open Activify",
+    "default_icon": {
+      "16": "icons/icon16.png",
+      "48": "icons/icon48.png",
+      "128": "icons/icon128.png"
+    }
+  },
+
+  "icons": {
+    "16": "icons/icon16.png",
+    "48": "icons/icon48.png",
+    "128": "icons/icon128.png"
+  },
+
+"oauth2": {
+  "client_id": "313266742621-okarjchihc9k2gmde9hlrgenhhqadmca.apps.googleusercontent.com",
+  "scopes": ["openid", "email", "profile"]
+  }
+}

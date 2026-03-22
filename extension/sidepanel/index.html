@@ -1,0 +1,212 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Activify</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+  <link href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@400;500;600;700&display=swap" rel="stylesheet" />
+  <script src="lucide.min.js"></script>
+  <link rel="stylesheet" href="panel.css" />
+</head>
+<body>
+
+  <!-- ── Header ─────────────────────────────────────────────────────────── -->
+  <header class="app-header">
+    <div class="logo">
+      <span class="logo-mark">A</span>
+      <span class="logo-text">activify<span>.</span></span>
+    </div>
+    <div class="header-actions">
+      <div class="streak-badge streak-frozen" id="streak-badge">
+        <svg class="fire" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" xmlns="http://www.w3.org/2000/svg">
+        <path d="M8.5 14.5A2.5 2.5 0 0 0 11 12c0-1.38-.5-2-1-3-1.072-2.143-.224-4.054 2-6 .5 2.5 2 4.9 4 6.5 2 1.6 3 3.5 3 5.5a7 7 0 1 1-14 0c0-1.153.433-2.294 1-3a2.5 2.5 0 0 0 2.5 2.5z"/>
+        </svg>
+        <span id="streak-count">0</span>
+        <span class="streak-label">-day streak</span>
+      </div>
+      <button class="icon-btn" id="btn-scan" title="Scan for new assignments">
+        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 2v6h-6"/><path d="M3 12a9 9 0 0 1 15-6.7L21 8"/><path d="M3 22v-6h6"/><path d="M21 12a9 9 0 0 1-15 6.7L3 16"/></svg>
+      </button>
+      <button class="icon-btn" id="btn-settings" title="Settings">
+        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="3"/><path d="M12 1v2M12 21v2M4.22 4.22l1.42 1.42M18.36 18.36l1.42 1.42M1 12h2M21 12h2M4.22 19.78l1.42-1.42M18.36 5.64l1.42-1.42"/></svg>
+      </button>
+    </div>
+  </header>
+
+  <!-- ── Tab Nav ─────────────────────────────────────────────────────────── -->
+  <nav class="tab-nav">
+    <button class="tab active" data-tab="today">Today</button>
+    <button class="tab" data-tab="week">Week</button>
+    <button class="tab" data-tab="upcoming">Upcoming</button>
+  </nav>
+
+  <!-- ── Scan status banner ──────────────────────────────────────────────── -->
+  <div class="scan-banner hidden" id="scan-banner">
+    <span class="scan-dot"></span>
+    <span id="scan-text">Scanning...</span>
+  </div>
+
+  <!-- ── Main content ───────────────────────────────────────────────────── -->
+  <main class="panel-main" id="panel-main">
+
+    <!-- TODAY VIEW -->
+    <section class="view active" id="view-today">
+      <div class="today-header">
+        <div class="date-hero" style="padding:0">
+          <span class="date-day" id="today-day"></span>
+          <span class="date-full" id="today-date"></span>
+        </div>
+        <div class="view-toggle">
+          <button class="view-toggle-btn active" id="today-toggle-list">List</button>
+          <button class="view-toggle-btn" id="today-toggle-cal">Calendar</button>
+        </div>
+      </div>
+      <div id="today-content"></div>
+    </section>
+
+    <!-- WEEK VIEW -->
+    <section class="view" id="view-week">
+      <div class="week-strip" id="week-strip"></div>
+      <div class="view-toggle" style="margin-bottom:4px">
+        <button class="view-toggle-btn active" id="week-toggle-list">List</button>
+        <button class="view-toggle-btn" id="week-toggle-cal">Calendar</button>
+      </div>
+      <div class="task-list" id="week-task-list"></div>
+    </section>
+
+    <!-- UPCOMING VIEW -->
+    <section class="view" id="view-upcoming">
+      <div class="filter-row">
+        <button class="filter-chip active" data-source="all">All</button>
+        <button class="filter-chip" data-source="google_classroom">Classroom</button>
+        <button class="filter-chip" data-source="canvas">Canvas</button>
+        <button class="filter-chip" data-source="schoology">Schoology</button>
+      </div>
+      <div class="assignment-list" id="upcoming-list"></div>
+    </section>
+
+  </main>
+
+  <!-- ── Add Task Modal ──────────────────────────────────────────────────── -->
+  <div class="modal-overlay hidden" id="modal-overlay">
+    <div class="modal" id="modal-task">
+      <div class="modal-header">
+        <h2 class="modal-title">New Task</h2>
+        <button class="icon-btn" id="modal-close">✕</button>
+      </div>
+      <div class="modal-body">
+        <div class="field">
+          <label>Title</label>
+          <input type="text" id="field-title" placeholder="e.g. Study for Calc test" />
+        </div>
+        <div class="field-row">
+          <div class="field">
+            <label>Date</label>
+            <input type="date" id="field-date" />
+          </div>
+          <div class="field">
+            <label>Start time</label>
+            <input type="time" id="field-time" />
+          </div>
+        </div>
+        <div class="field-row">
+          <div class="field">
+            <label>Duration (min)</label>
+            <input type="number" id="field-duration" value="45" min="5" max="480" />
+          </div>
+          <div class="field">
+            <label>Category</label>
+            <select id="field-category">
+              <option value="assignment">Assignment</option>
+              <option value="study">Study</option>
+              <option value="extracurricular">Extracurricular</option>
+              <option value="manual">Other</option>
+            </select>
+          </div>
+        </div>
+      </div>
+      <div class="modal-footer">
+        <button class="btn-ghost" id="btn-cancel">Cancel</button>
+        <button class="btn-primary" id="btn-save-task">Save Task</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- ── Settings Drawer ────────────────────────────────────────────────── -->
+  <div class="settings-overlay hidden" id="settings-overlay">
+    <div class="settings-drawer">
+      <div class="settings-header">
+        <h2 class="modal-title">Settings</h2>
+        <button class="icon-btn" id="settings-close">✕</button>
+      </div>
+
+      <div class="settings-body">
+
+        <div class="settings-section">
+          <div class="settings-section-title">AI Assistant</div>
+          <div class="field">
+            <label>Groq API Key</label>
+            <div class="api-key-row">
+              <input type="password" id="field-api-key" placeholder="Paste your Groq API key..." />
+              <button class="btn-primary" id="btn-save-key">Save</button>
+            </div>
+            <div class="field-hint">
+              Get a free key at <a href="https://console.groq.com" target="_blank">console.groq.com</a>
+            </div>
+          </div>
+          <div class="api-key-status hidden" id="api-key-status"></div>
+        </div>
+
+        <div class="settings-section">
+          <div class="settings-section-title">Reminders</div>
+          <div class="field">
+            <label>Remind me before tasks (minutes)</label>
+            <input type="number" id="field-reminder-mins" value="30" min="5" max="120" />
+          </div>
+        </div>
+
+        <div class="settings-section">
+          <div class="settings-section-title">Data</div>
+          <button class="btn-danger" id="btn-clear-tasks">Clear all tasks</button>
+        </div>
+
+      </div>
+    </div>
+  </div>
+
+  <!-- ── AI Chat Bubble ──────────────────────────────────────────────────── -->
+  <button class="ai-bubble" id="ai-bubble" title="Ask Activify AI">
+    <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"/></svg>
+  </button>
+
+  <!-- ── AI Chat Drawer ──────────────────────────────────────────────────── -->
+  <div class="ai-drawer hidden" id="ai-drawer">
+    <div class="ai-drawer-header">
+      <div class="ai-title">
+        <span class="ai-logo-mark">A</span>
+        <span>Activify AI</span>
+      </div>
+      <button class="icon-btn" id="ai-close">✕</button>
+    </div>
+
+    <div class="quick-prompts" id="quick-prompts"></div>
+
+    <div class="ai-messages" id="ai-messages">
+      <div class="ai-message assistant">
+        Hey! I can see your assignments and schedule. Ask me to plan your day, estimate homework time, or suggest what to work on now 👋
+      </div>
+    </div>
+
+    <div class="ai-input-row">
+      <input type="text" class="ai-input" id="ai-input" placeholder="Ask anything about your schedule..." />
+      <button class="ai-send" id="ai-send">
+        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><line x1="22" y1="2" x2="11" y2="13"/><polygon points="22 2 15 22 11 13 2 9 22 2"/></svg>
+      </button>
+    </div>
+  </div>
+
+  <script src="panel.js" type="module"></script>
+</body>
+</html>

@@ -1,0 +1,33 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <title>Activify — Sign In</title>
+  <link rel="stylesheet" href="panel.css" />
+  <style>
+    .auth-screen { display: flex; flex-direction: column; align-items: center; justify-content: center; height: 100vh; gap: 16px; padding: 32px; text-align: center; }
+    .auth-logo { display: flex; align-items: center; gap: 10px; margin-bottom: 8px; }
+    .auth-tagline { font-size: 14px; color: var(--text-2); max-width: 240px; line-height: 1.6; margin-bottom: 8px; }
+    .auth-input { width: 100%; padding: 10px 14px; border: 1px solid var(--border); border-radius: var(--radius-sm); background: var(--surface); color: var(--text); font-size: 13px; font-family: var(--font-body); }
+    .auth-input:focus { outline: none; border-color: var(--accent); }
+    .auth-error { font-size: 12px; color: var(--warn); min-height: 16px; }
+    .auth-toggle { font-size: 12px; color: var(--text-3); cursor: pointer; }
+    .auth-toggle:hover { color: var(--accent); }
+  </style>
+</head>
+<body>
+  <div class="auth-screen">
+    <div class="auth-logo">
+      <div class="logo-mark">A</div>
+      <span class="logo-text">activi<span>fy.</span></span>
+    </div>
+    <p class="auth-tagline">Sign in to sync your tasks across extension and mobile.</p>
+    <input class="auth-input" id="field-email" type="email" placeholder="Email" autocomplete="email" />
+    <input class="auth-input" id="field-password" type="password" placeholder="Password" />
+    <p class="auth-error" id="auth-error"></p>
+    <button class="btn-primary" id="btn-submit" style="width:100%">Sign In</button>
+    <p class="auth-toggle" id="toggle-mode">Don't have an account? Sign up</p>
+  </div>
+  <script type="module" src="auth.js"></script>
+</body>
+</html>
