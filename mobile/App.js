@@ -2,7 +2,7 @@ import { useEffect, useState } from 'react';
 import { StatusBar } from 'expo-status-bar';
 import {
   StyleSheet, Text, View, TouchableOpacity,
-  FlatList, SafeAreaView, ActivityIndicator, TextInput, Platform,
+  FlatList, ActivityIndicator, TextInput, Platform,
 } from 'react-native';
 import * as Device from 'expo-device';
 import { createClient } from '@supabase/supabase-js';
@@ -155,8 +155,7 @@ function SignInScreen() {
       <StatusBar style="light" />
       <View style={styles.authInner}>
         <View style={styles.logoRow}>
-          <View style={styles.logoMark}><Text style={styles.logoMarkText}>A</Text></View>
-          <Text style={styles.logoText}>activi<Text style={{ color: colors.accent }}>fy.</Text></Text>
+          <Text style={styles.logoText}>activify<Text style={{ color: colors.accent }}>.</Text></Text>
         </View>
         <Text style={styles.authTagline}>Your daily planner — synced across extension and mobile.</Text>
         <TextInput style={styles.input} placeholder="Email" placeholderTextColor={colors.text3} value={email} onChangeText={setEmail} autoCapitalize="none" keyboardType="email-address" />
@@ -182,7 +181,7 @@ function HomeScreen({ tasks, assignments, onRefresh, onSignOut }) {
     <View style={[styles.flex, { backgroundColor: colors.bg }]}>
       <StatusBar style="light" />
       <View style={[styles.header, { paddingTop: Platform.OS === 'android' ? 48 : 16 }]}>
-        <Text style={styles.headerTitle}>activi<Text style={{ color: colors.accent }}>fy.</Text></Text>
+        <Text style={styles.headerTitle}>activify<Text style={{ color: colors.accent }}>.</Text></Text>
         <TouchableOpacity onPress={onSignOut}>
           <Text style={styles.signOutBtn}>Sign out</Text>
         </TouchableOpacity>
@@ -250,8 +249,6 @@ const styles = StyleSheet.create({
   center:        { flex: 1, alignItems: 'center', justifyContent: 'center' },
   authInner:     { width: '100%', paddingHorizontal: 32, alignItems: 'center', gap: 12 },
   logoRow:       { flexDirection: 'row', alignItems: 'center', gap: 10, marginBottom: 8 },
-  logoMark:      { width: 36, height: 36, borderRadius: 10, backgroundColor: colors.accent, alignItems: 'center', justifyContent: 'center' },
-  logoMarkText:  { color: '#fff', fontWeight: '700', fontSize: 18 },
   logoText:      { color: colors.text, fontSize: 24, fontWeight: '700', letterSpacing: -0.5 },
   authTagline:   { color: colors.text2, fontSize: 14, textAlign: 'center', lineHeight: 22, maxWidth: 260, marginBottom: 8 },
   input:         { width: '100%', backgroundColor: colors.surface, borderRadius: 12, borderWidth: 1, borderColor: colors.border, padding: 14, color: colors.text, fontSize: 14 },
