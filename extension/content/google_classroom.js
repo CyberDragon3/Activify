@@ -219,7 +219,36 @@
       }
     }
 
-    return assignments;
+    // Dedup pass 1: by logical ID (course+title hash)
+    const seenIds = new Set();
+    const deduped = [];
+    for (const a of assignments) {
+      if (!seenIds.has(a.id)) {
+        seenIds.add(a.id);
+        deduped.push(a);
+      }
+    }
+
+    // Dedup pass 2: by title — catches cases where the same assignment appears in
+    // different DOM contexts producing different course strings (and thus different IDs).
+    // When a collision is found, keep whichever entry has a dueDate; ties go to first seen.
+    const seenTitles = new Map(); // normalized title -> index in deduped2
+    const deduped2 = [];
+    for (const a of deduped) {
+      const key = a.title.toLowerCase().trim();
+      if (!seenTitles.has(key)) {
+        seenTitles.set(key, deduped2.length);
+        deduped2.push(a);
+      } else {
+        // Prefer the entry that actually has a resolved dueDate
+        const idx = seenTitles.get(key);
+        if (!deduped2[idx].dueDate && a.dueDate) {
+          deduped2[idx] = a;
+        }
+      }
+    }
+
+    return deduped2;
   }
 
   function run() {
