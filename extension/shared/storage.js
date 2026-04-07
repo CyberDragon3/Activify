@@ -4,15 +4,15 @@ const SUPABASE_URL = 'https://uoetcnbpvgovjqnvpvtz.supabase.co';
 const SUPABASE_ANON_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InVvZXRjbmJwdmdvdmpxbnZwdnR6Iiwicm9sZSI6ImFub24iLCJpYXQiOjE3NzQxMjk1MDAsImV4cCI6MjA4OTcwNTUwMH0.064TFKLxXCCRZPmJEK47O_QiRcxllJA2Bjx6TxdSNsY';
 
 const ChromeStorageAdapter = {
-  getItem: async (key) => {
-    const result = await chrome.storage.local.get(key);
-    return result[key] ?? null;
+  getItem: async (key, userId) => {
+    const result = await chrome.storage.local.get(`${userId}_${key}`);
+    return result[`${userId}_${key}`] ?? null;
   },
-  setItem: async (key, value) => {
-    await chrome.storage.local.set({ [key]: value });
+  setItem: async (key, value, userId) => {
+    await chrome.storage.local.set({ [`${userId}_${key}`]: value });
   },
-  removeItem: async (key) => {
-    await chrome.storage.local.remove(key);
+  removeItem: async (key, userId) => {
+    await chrome.storage.local.remove(`${userId}_${key}`);
   },
 };
 
@@ -60,9 +60,9 @@ export async function signOut() {
 
 // ── Assignment Helpers ────────────────────────────────────────────────────────
 
-export async function getAssignments() {
-  const result = await chrome.storage.local.get(KEYS.ASSIGNMENTS);
-  return result[KEYS.ASSIGNMENTS] || [];
+export async function getAssignments(userId) {
+  const result = await chrome.storage.local.get(`${userId}_${KEYS.ASSIGNMENTS}`);
+  return result[`${userId}_${KEYS.ASSIGNMENTS}`] || [];
 }
 
 export async function mergeAssignments(scraped) {
