@@ -66,28 +66,75 @@ export async function getAssignments() {
 }
 
 export async function mergeAssignments(scraped) {
-  const existing = await getAssignments();
-  const todayStr = new Date().toISOString().slice(0, 10);
-  const filtered = existing.filter(a => !a.dueDate || a.dueDate >= todayStr);
-  const map = Object.fromEntries(filtered.map(a => [a.id, a]));
-  for (const a of scraped) {
-    if (map[a.id]) {
-      map[a.id] = { ...a, completed: map[a.id].completed };
-    } else {
-      map[a.id] = a;
-    }
+  // 1. GUARD: If no new assignments were found, stop here.
+  // This prevents an empty scan from wiping out your existing data.
+  if (!scraped || scraped.length === 0) {
+    console.log('[Activify] Empty scrape detected; skipping merge to protect existing data.');
+    return await getAssignments(); 
   }
+
+  const existing = await getAssignments();
+  const source = scraped[0].source; // We know it exists because of the guard above
+  const todayStr = new Date().toISOString().slice(0, 10);
+
+  // 2. Keep assignments from OTHER sources.
+  // Also clean up legacy source keys (e.g. old 'classroom' → now 'google_classroom')
+  // and filter out past-due assignments.
+  const SOURCE_ALIASES = { google_classroom: ['classroom'] };
+  const aliasesToDrop = SOURCE_ALIASES[source] || [];
+  const otherSources = existing.filter(a =>
+    a.source !== source &&
+    !aliasesToDrop.includes(a.source) &&
+    (!a.dueDate || a.dueDate >= todayStr)
+  );
+
+  // 3. Build a map starting with other sources AND existing same-source assignments.
+  // This allows multiple accounts (e.g. two Google Classroom accounts) to coexist:
+  // scanning Account 2 won't wipe Account 1's assignments.
+  // Past-due same-source assignments are filtered out here too.
+  const existingSameSource = existing.filter(a =>
+    a.source === source && (!a.dueDate || a.dueDate >= todayStr)
+  );
+  const existingSourceMap = Object.fromEntries(existingSameSource.map(a => [a.id, a]));
+  const map = Object.fromEntries([...otherSources, ...existingSameSource].map(a => [a.id, a]));
+
+  // 4. Update/add assignments from this scan, preserving completed state.
+  for (const a of scraped) {
+    map[a.id] = { ...a, completed: existingSourceMap[a.id]?.completed ?? a.completed };
+  }
+
   const merged = Object.values(map);
+  
+  // 5. Save to local storage
   await chrome.storage.local.set({ [KEYS.ASSIGNMENTS]: merged });
-  syncAssignmentsToSupabase(merged).catch(e =>
+
+  // 6. Sync to Supabase
+  // We pass 'source' so the background script knows which specific source to refresh
+  syncAssignmentsToSupabase(merged, source).catch(e =>
     console.warn('[Activify] Supabase assignment sync failed:', e)
   );
+
   return merged;
 }
 
-async function syncAssignmentsToSupabase(assignments) {
-  const user = await getCurrentUser();
-  if (!user) return;
+async function syncAssignmentsToSupabase(assignments, source) {
+  const token = await getToken();
+  if (!token) return;
+  const { access_token, user } = token;
+
+  // Delete all existing assignments for this source from Supabase
+  if (source) {
+    await fetch(`https://uoetcnbpvgovjqnvpvtz.supabase.co/rest/v1/assignments?source=eq.${source}&user_id=eq.${user.id}`, {
+      method: 'DELETE',
+      headers: {
+        'apikey': SUPABASE_ANON_KEY,
+        'Authorization': `Bearer ${access_token}`,
+      },
+    });
+  }
+
+  // Insert fresh assignments
+  if (!assignments.length) return;
   const rows = assignments.map(a => ({
     id: a.id,
     user_id: user.id,
@@ -101,7 +148,17 @@ async function syncAssignmentsToSupabase(assignments) {
     completed: a.completed,
     scanned_at: a.scannedAt,
   }));
-  await supabase.from('assignments').upsert(rows, { onConflict: 'id' });
+
+  await fetch('https://uoetcnbpvgovjqnvpvtz.supabase.co/rest/v1/assignments', {
+    method: 'POST',
+    headers: {
+      'Content-Type': 'application/json',
+      'apikey': SUPABASE_ANON_KEY,
+      'Authorization': `Bearer ${access_token}`,
+      'Prefer': 'resolution=merge-duplicates',
+    },
+    body: JSON.stringify(rows),
+  });
 }
 
 export async function setAssignmentCompleted(id, completed) {
