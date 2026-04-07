@@ -65,7 +65,7 @@ export async function getAssignments(userId) {
   return result[`${userId}_${KEYS.ASSIGNMENTS}`] || [];
 }
 
-export async function mergeAssignments(scraped) {
+export async function mergeAssignments(scraped, userId) {
   // 1. GUARD: If no new assignments were found, stop here.
   // This prevents an empty scan from wiping out your existing data.
   if (!scraped || scraped.length === 0) {
@@ -73,7 +73,7 @@ export async function mergeAssignments(scraped) {
     return await getAssignments(); 
   }
 
-  const existing = await getAssignments();
+  const existing = await getAssignments(userId);
   const source = scraped[0].source; // We know it exists because of the guard above
   const todayStr = new Date().toISOString().slice(0, 10);
 
@@ -106,7 +106,7 @@ export async function mergeAssignments(scraped) {
   const merged = Object.values(map);
   
   // 5. Save to local storage
-  await chrome.storage.local.set({ [KEYS.ASSIGNMENTS]: merged });
+  await chrome.storage.local.set({ [`${userId}_${KEYS.ASSIGNMENTS}`]: merged });
 
   // 6. Sync to Supabase
   // We pass 'source' so the background script knows which specific source to refresh
