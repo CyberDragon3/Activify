@@ -2,8 +2,11 @@
 import {
   getAssignments, getTasks, upsertTask, deleteTask,
   formatDate, today, parseDate,
-  getCurrentUser, pullFromSupabase,
-} from '../shared/storage.bundle.js';
+  getCurrentUser, pullFromSupabase, clearAuth,
+} from '../shared/storage.js';
+
+// Expose helper to console for Task 5
+window.activifyClearAuth = clearAuth;
 import { sendMessage, applyTasksFromResponse, QUICK_PROMPTS } from './ai.js';
 
 // ─── State ────────────────────────────────────────────────────────────────────
@@ -20,11 +23,14 @@ let weekViewMode = 'list';
 document.addEventListener('DOMContentLoaded', init);
 
 async function init() {
-  // Add these two lines:
+  // SINGLE auth check — remove all others
   const user = await getCurrentUser();
-  if (!user) { window.location.href = 'auth.html'; return; }
+  if (!user) {
+    window.location.replace('auth.html');
+    return;
+  }
+
   pullFromSupabase().catch(() => {});
-  // rest of your existing init unchanged...
   renderDateHero();
   renderWeekStrip();
   bindNav();
@@ -34,11 +40,21 @@ async function init() {
   bindAI();
   bindViewToggles();
   await renderAll();
-
-  chrome.runtime.onMessage.addListener((msg) => {
-    if (msg.type === 'ACTIVIFY_REFRESH') renderAll();
-  });
 }
+
+// Global listener (outside init)
+chrome.runtime.onMessage.addListener((msg) => {
+  if (msg.type === 'ACTIVIFY_REFRESH') {
+    console.log('[Activify] Received ACTIVIFY_REFRESH message');
+    renderAll().finally(() => {
+      // Stop scan animations
+      const btn = document.getElementById('btn-scan');
+      if (btn) btn.classList.remove('spinning');
+      const banner = document.getElementById('scan-banner');
+      if (banner) banner.classList.add('hidden');
+    });
+  }
+});
 
 // ─── Date helpers ─────────────────────────────────────────────────────────────
 function renderDateHero() {
@@ -147,24 +163,54 @@ function bindNav() {
 // ─── Scan ─────────────────────────────────────────────────────────────────────
 function bindScan() {
   const btn = document.getElementById('btn-scan');
+  
   btn.addEventListener('click', async () => {
+    // 1. Check if API Key exists before even trying
+    const { groqApiKey } = await chrome.storage.local.get('groqApiKey');
+    if (!groqApiKey || groqApiKey.trim() === '') {
+      showScanBanner('⚠️ Please add Groq API Key in Settings', 5000);
+      return;
+    }
+
+    // 2. Start UI animations
     btn.classList.add('spinning');
-    showScanBanner('Scanning school sites...');
-    chrome.runtime.sendMessage({ type: 'ACTIVIFY_REQUEST_SCAN' }, () => {
-      setTimeout(() => {
+    showScanBanner('AI is analyzing page content...');
+
+    // Safety timeout: if we don't hear back in 30s, clear the banner
+    setTimeout(() => {
+      if (btn.classList.contains('spinning')) {
         btn.classList.remove('spinning');
-        showScanBanner('Scan complete ✓', 2000);
-        renderAll();
-      }, 2500);
+        const banner = document.getElementById('scan-banner');
+        if (banner && !banner.classList.contains('hidden')) {
+          showScanBanner('Scan timed out. Check your connection or API key.', 4000);
+        }
+      }
+    }, 30000);
+
+    // 3. Request the scan from the Service Worker
+    chrome.runtime.sendMessage({ type: 'ACTIVIFY_REQUEST_SCAN' }, (response) => {
+      // Note: The AI takes a few seconds, so we wait for the message back 
+      // from the service worker via the listener below, not just this callback.
+      if (chrome.runtime.lastError || !response || !response.ok) {
+        btn.classList.remove('spinning');
+        showScanBanner('Error: Make sure a school site is open', 3000);
+      }
     });
   });
 }
 
+// ─── Helper for UI Feedback ──────────────────────────────────────────────────
 function showScanBanner(text, hideAfterMs = 0) {
   const banner = document.getElementById('scan-banner');
-  document.getElementById('scan-text').textContent = text;
+  const textEl = document.getElementById('scan-text');
+  if (!banner || !textEl) return;
+
+  textEl.textContent = text;
   banner.classList.remove('hidden');
-  if (hideAfterMs) setTimeout(() => banner.classList.add('hidden'), hideAfterMs);
+  
+  if (hideAfterMs) {
+    setTimeout(() => banner.classList.add('hidden'), hideAfterMs);
+  }
 }
 
 // ─── Settings ─────────────────────────────────────────────────────────────────
@@ -179,6 +225,7 @@ function bindSettings() {
   document.getElementById('btn-settings').addEventListener('click', async () => {
     const result = await chrome.storage.local.get('groqApiKey');
     if (result.groqApiKey) {
+      apiKeyInput.value = result.groqApiKey;
       apiKeyInput.placeholder = '••••••••••••••••••••' + result.groqApiKey.slice(-4);
     }
     const settings = await chrome.storage.local.get('settings');
@@ -674,7 +721,7 @@ function categoryBorderColor(cat) {
 
 // ─── UPCOMING VIEW ────────────────────────────────────────────────────────────
 async function renderUpcoming() {
-  const assignments = await getAssignments();
+  const assignments = await getAssignments(); // no args
   const container = document.getElementById('upcoming-list');
   container.innerHTML = '';
 

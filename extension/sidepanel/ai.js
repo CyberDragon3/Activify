@@ -5,7 +5,7 @@ import {
   today, 
   clearAiTasks, 
   batchUpsertTasks 
-} from '../shared/storage.bundle.js';
+} from '../shared/storage.js';
 
 const MODEL = 'llama-3.3-70b-versatile';
 
@@ -45,7 +45,7 @@ ${todayTasks || 'Nothing scheduled yet.'}
 }
 
 // ─── System prompt ────────────────────────────────────────────────────────────
-const SYSTEM_PROMPT = `You are Activyif AI, a scheduling assistant built into a Chrome extension for high school students. You have access to the student's assignments scraped from Google Classroom, Canvas, and Schoology.
+const SYSTEM_PROMPT = `You are Activify AI, a scheduling assistant built into a Chrome extension for high school students. You have access to the student's assignments scraped from Google Classroom, Canvas, and Schoology.
 
 Your job is to help students:
 1. Plan their day by scheduling study blocks

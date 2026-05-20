@@ -1,7 +1,38 @@
-// shared/supabase.js
-import { createClient } from 'https://esm.sh/@supabase/supabase-js@2';
+import { createClient } from './supabase-lib.js';
 
-const SUPABASE_URL = 'https://uoetcnbpvgovjqnvpvtz.supabase.co';
-const SUPABASE_ANON_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InVvZXRjbmJwdmdvdmpxbnZwdnR6Iiwicm9sZSI6ImFub24iLCJpYXQiOjE3NzQxMjk1MDAsImV4cCI6MjA4OTcwNTUwMH0.064TFKLxXCCRZPmJEK47O_QiRcxllJA2Bjx6TxdSNsY';
+const supabaseUrl = 'https://zhubgshxptzrdgbtstgy.supabase.co';
+const supabaseKey = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9...'; // (your actual key)
 
-export const supabase = createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
+// Custom storage adapter for Chrome Extensions to persist session in chrome.storage.local
+const ChromeStorageAdapter = {
+  getItem: (key) => {
+    return new Promise((resolve) => {
+      chrome.storage.local.get([key], (result) => {
+        resolve(result[key] || null);
+      });
+    });
+  },
+  setItem: (key, value) => {
+    return new Promise((resolve) => {
+      chrome.storage.local.set({ [key]: value }, () => {
+        resolve();
+      });
+    });
+  },
+  removeItem: (key) => {
+    return new Promise((resolve) => {
+      chrome.storage.local.remove([key], () => {
+        resolve();
+      });
+    });
+  },
+};
+
+export const supabase = createClient(supabaseUrl, supabaseKey, {
+  auth: {
+    storage: ChromeStorageAdapter,
+    autoRefreshToken: true,
+    persistSession: true,
+    detectSessionInUrl: false,
+  },
+});

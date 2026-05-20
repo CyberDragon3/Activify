@@ -11,7 +11,7 @@
   "author": "",
   "license": "ISC",
   "dependencies": {
-    "@supabase/supabase-js": "^2.99.3"
+    "./supabase-lib.js": "^2.99.3"
   },
   "devDependencies": {
     "esbuild": "^0.27.4"

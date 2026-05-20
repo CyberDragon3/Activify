@@ -1,18 +1,15 @@
 {
   "manifest_version": 3,
   "name": "Activify – Student Planner",
-  "version": "0.1.0",
-  "description": "Auto-scans Google Classroom, Canvas, and Schoology to build your daily planner.",
+  "version": "1.1.3",
+  "description": "Auto-scans Google Classroom, Canvas, and Schoology to build your daily planner using AI.",
 
   "permissions": [
-  "sidePanel",
-  "storage",
-  "alarms",
-  "notifications",
-  "tabs",
-  "scripting",
-  "identity"
-],
+    "sidePanel",
+    "storage",
+    "tabs",
+    "identity"
+  ],
 
   "host_permissions": [
     "https://*.googleapis.com/*",
@@ -25,24 +22,18 @@
   ],
 
   "background": {
-  "service_worker": "background/service_worker.js",
-  "type": "module"
-},
+    "service_worker": "background/service_worker.js",
+    "type": "module"
+  },
 
   "content_scripts": [
     {
-      "matches": ["https://classroom.google.com/*"],
-      "js": ["content/google_classroom.js"],
-      "run_at": "document_idle"
-    },
-    {
-      "matches": ["https://*.instructure.com/*"],
-      "js": ["content/canvas.js"],
-      "run_at": "document_idle"
-    },
-    {
-      "matches": ["https://*.schoology.com/*"],
-      "js": ["content/schoology.js"],
+      "matches": [
+        "https://classroom.google.com/*",
+        "https://*.instructure.com/*",
+        "https://*.schoology.com/*"
+      ],
+      "js": ["content/ai_scraper.js"],
       "run_at": "document_idle"
     }
   ],
@@ -66,8 +57,8 @@
     "128": "icons/icon128.png"
   },
 
-"oauth2": {
-  "client_id": "313266742621-okarjchihc9k2gmde9hlrgenhhqadmca.apps.googleusercontent.com",
-  "scopes": ["openid", "email", "profile"]
+  "oauth2": {
+    "client_id": "313266742621-okarjchihc9k2gmde9hlrgenhhqadmca.apps.googleusercontent.com",
+    "scopes": ["openid", "email", "profile"]
   }
 }

@@ -1,7 +1,15 @@
-import { getCurrentUser, supabase } from '../shared/storage.bundle.js';
+import { supabase } from '../shared/storage.js';
 
-getCurrentUser().then(user => {
-  if (user) window.location.href = 'index.html';
+supabase.auth.onAuthStateChange(async (event, session) => {
+  console.log(`[Activify] Auth Event: ${event}`, session ? 'Session exists' : 'No session');
+  
+  if ((event === 'SIGNED_IN' || event === 'INITIAL_SESSION' || event === 'TOKEN_REFRESHED') && session) {
+    console.log('[Activify] Valid session detected, redirecting...');
+    // Use a small delay to ensure storage has persisted before navigation
+    setTimeout(() => {
+      window.location.replace('index.html');
+    }, 100);
+  }
 });
 
 let mode = 'signin';
@@ -21,8 +29,12 @@ document.getElementById('btn-submit').addEventListener('click', async () => {
   const errorEl = document.getElementById('auth-error');
   const btn = document.getElementById('btn-submit');
 
-  if (!email || !password) { errorEl.textContent = 'Please fill in both fields.'; return; }
+  if (!email || !password) {
+    errorEl.textContent = 'Please fill in both fields.';
+    return;
+  }
 
+  console.log('[Activify] Login started:', { email, mode });
   btn.disabled = true;
   btn.textContent = 'Loading...';
   errorEl.textContent = '';
@@ -35,22 +47,37 @@ document.getElementById('btn-submit').addEventListener('click', async () => {
       result = await supabase.auth.signUp({ email, password });
     }
 
-    if (result.error) throw result.error;
+    console.log('[Activify] Supabase responded:', result);
+
+    if (result.error) {
+      console.error('[Activify] Auth Error:', result.error.message);
+      throw result.error;
+    }
 
     if (mode === 'signup') {
       errorEl.style.color = 'var(--green)';
       errorEl.textContent = '✓ Check your email to confirm your account.';
-      btn.disabled = false;
-      btn.textContent = 'Create Account';
       return;
     }
 
-    window.location.href = 'index.html';
+    if (result.data?.session) {
+      console.log('[Activify] Redirecting to index.html...');
+      window.location.replace('index.html');
+    } else if (mode === 'signin') {
+      console.warn('[Activify] Sign in successful but no session returned?');
+      errorEl.textContent = 'Session could not be established. Please try again.';
+    }
   } catch (err) {
+    console.error('[Activify] Catch block error:', err);
     errorEl.style.color = 'var(--warn)';
-    errorEl.textContent = err.message;
-    btn.disabled = false;
-    btn.textContent = mode === 'signin' ? 'Sign In' : 'Create Account';
+    errorEl.textContent = err.message || 'An unexpected error occurred.';
+  } finally {
+    // Only reset if we are not redirecting or if we are in signup mode
+    if (mode === 'signup' || errorEl.textContent !== '') {
+      console.log('[Activify] Resetting button state');
+      btn.disabled = false;
+      btn.textContent = mode === 'signin' ? 'Sign In' : 'Create Account';
+    }
   }
 });
 

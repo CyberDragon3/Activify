@@ -5,7 +5,7 @@ import {
   FlatList, ActivityIndicator, TextInput, Platform,
 } from 'react-native';
 import * as Device from 'expo-device';
-import { createClient } from '@supabase/supabase-js';
+import { createClient } from './supabase-lib.js';
 import * as SecureStore from 'expo-secure-store';
 
 const SUPABASE_URL = 'https://uoetcnbpvgovjqnvpvtz.supabase.co';
