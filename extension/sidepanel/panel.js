@@ -8,7 +8,6 @@ import {
 // Expose helper to console for Task 5
 window.activifyClearAuth = clearAuth;
 import { sendMessage, applyTasksFromResponse, QUICK_PROMPTS } from './ai.js';
-import { applyWeatherTheme } from './weather-theme.js'; // Import the new weather theme function
 
 // ─── State ────────────────────────────────────────────────────────────────────
 let currentTab = 'today';
@@ -42,7 +41,6 @@ async function init() {
   bindAI();
   bindViewToggles();
   await renderAll();
-  await applyWeatherTheme(); // Apply weather theme on init
 }
 
 // Global listener (outside init)
