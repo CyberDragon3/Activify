@@ -10,8 +10,11 @@
   --text:        hsl(42, 34%, 94%);
   --text-2:      hsl(38, 13%, 70%);
   --text-3:      hsl(35, 9%, 49%);
-  --accent:      hsl(12, 94%, 68%);
-  --accent-soft: hsl(12, 94%, 68%, 0.14);
+  --accent-h:    12; /* Default HSL components for accent hue */
+  --accent-s:    94%; /* Default HSL components for accent saturation */
+  --accent-l:    68%; /* Default HSL components for accent lightness */
+  --accent:      hsl(var(--accent-h), var(--accent-s), var(--accent-l)); /* Derived accent color */
+  --accent-soft: hsla(var(--accent-h), var(--accent-s), var(--accent-l), 0.14); /* Derived from accent HSL components with alpha */
   --secondary:   hsl(158, 58%, 55%);
   --secondary-soft: hsl(158, 58%, 55%, 0.13);
   --green:       hsl(149, 61%, 52%);
@@ -20,6 +23,8 @@
   --warn-soft:   hsl(33, 94%, 62%, 0.13);
   --info:        hsl(190, 82%, 62%);
   --info-soft:   hsl(190, 82%, 62%, 0.10);
+  --bg-tint: transparent; /* Default background tint, applied as an overlay */
+  transition: all 0.8s ease; /* Smooth transition for all custom properties */
 
   --clr-gc:      #65a7ff;
   --clr-canvas:  #ff9f62;
@@ -43,9 +48,10 @@ html, body {
   overflow-x: hidden;
   font-family: var(--font-body);
   background:
-    radial-gradient(circle at 18% -10%, hsl(12, 94%, 68%, 0.10), transparent 30%),
-    radial-gradient(circle at 95% 8%, hsl(158, 58%, 55%, 0.08), transparent 28%),
+    radial-gradient(circle at 18% -10%, hsla(var(--accent-h), var(--accent-s), var(--accent-l), 0.10), transparent 30%), /* Dynamically use accent HSL components */
+    radial-gradient(circle at 95% 8%, var(--secondary-soft), transparent 28%), /* Secondary soft unchanged, or adjust if desired */
     var(--bg);
+  background-color: var(--bg-tint); /* Apply background tint as an overlay */
   color: var(--text);
   font-size: 14px;
   line-height: 1.5;
