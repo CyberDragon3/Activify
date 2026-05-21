@@ -2,7 +2,7 @@
 import {
   getAssignments, getTasks, upsertTask, deleteTask,
   formatDate, today, parseDate,
-  getCurrentUser, pullFromSupabase, clearAuth,
+  getCurrentUser, pullFromSupabase, clearAuth, dedupeAssignmentsWithAI,
 } from '../shared/storage.js';
 
 // Expose helper to console for Task 5
@@ -30,7 +30,8 @@ async function init() {
     return;
   }
 
-  pullFromSupabase().catch(() => {});
+  await pullFromSupabase().catch(() => {});
+  await dedupeAssignmentsWithAI().catch(() => {});
   renderDateHero();
   renderWeekStrip();
   bindNav();
@@ -46,7 +47,7 @@ async function init() {
 chrome.runtime.onMessage.addListener((msg) => {
   if (msg.type === 'ACTIVIFY_REFRESH') {
     console.log('[Activify] Received ACTIVIFY_REFRESH message');
-    renderAll().finally(() => {
+    dedupeAssignmentsWithAI().then(() => renderAll()).finally(() => {
       // Stop scan animations
       const btn = document.getElementById('btn-scan');
       if (btn) btn.classList.remove('spinning');
@@ -228,10 +229,6 @@ function bindSettings() {
       apiKeyInput.value = result.groqApiKey;
       apiKeyInput.placeholder = '••••••••••••••••••••' + result.groqApiKey.slice(-4);
     }
-    const settings = await chrome.storage.local.get('settings');
-    if (settings.settings?.reminderMinsBefore) {
-      document.getElementById('field-reminder-mins').value = settings.settings.reminderMinsBefore;
-    }
     overlay.classList.remove('hidden');
   });
 
@@ -250,14 +247,6 @@ function bindSettings() {
     apiKeyInput.value = '';
     apiKeyInput.placeholder = '••••••••••••••••••••' + key.slice(-4);
     showKeyStatus('✓ API key saved!', 'success');
-  });
-
-  document.getElementById('field-reminder-mins').addEventListener('change', async (e) => {
-    const result = await chrome.storage.local.get('settings');
-    const current = result.settings || {};
-    await chrome.storage.local.set({
-      settings: { ...current, reminderMinsBefore: parseInt(e.target.value) }
-    });
   });
 
   clearTasksBtn.addEventListener('click', async () => {

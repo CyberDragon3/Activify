@@ -47,7 +47,10 @@ const KEYS = {
   TASKS: 'tasks',
   LAST_SCAN: 'lastScan',
   SETTINGS: 'settings',
+  LAST_DEDUPE_SIGNATURE: 'lastAssignmentDedupeSignature',
 };
+
+const DEDUPE_MODEL = 'llama-3.3-70b-versatile';
 
 // --- AUTH HELPERS ---
 
@@ -98,6 +101,110 @@ export async function getAssignments() {
   return result[KEYS.ASSIGNMENTS] || [];
 }
 
+export async function dedupeAssignmentsWithAI({ force = false, syncDeleted = true } = {}) {
+  const assignments = await getAssignments();
+  if (assignments.length < 2) return { changed: false, assignments, removed: [] };
+
+  const { groqApiKey } = await chrome.storage.local.get('groqApiKey');
+  if (!groqApiKey || !groqApiKey.trim()) {
+    return { changed: false, assignments, removed: [] };
+  }
+
+  const signature = assignmentDedupeSignature(assignments);
+  const cached = await chrome.storage.local.get(KEYS.LAST_DEDUPE_SIGNATURE);
+  if (!force && cached[KEYS.LAST_DEDUPE_SIGNATURE] === signature) {
+    return { changed: false, assignments, removed: [] };
+  }
+
+  const candidates = assignments
+    .filter(a => !a.completed && a.title && a.dueDate)
+    .slice(0, 120)
+    .map(a => ({
+      id: a.id,
+      source: a.source || '',
+      course: a.course || '',
+      title: a.title || '',
+      dueDate: a.dueDate || null,
+      dueTime: a.dueTime || null,
+      url: a.url || null,
+    }));
+
+  if (candidates.length < 2) {
+    await chrome.storage.local.set({ [KEYS.LAST_DEDUPE_SIGNATURE]: signature });
+    return { changed: false, assignments, removed: [] };
+  }
+
+  const systemPrompt = `You deduplicate school assignments for a student planner.
+Return ONLY valid JSON in this shape:
+{ "duplicateGroups": [ { "keepId": "assignment id to keep", "duplicateIds": ["ids to remove"], "reason": "short reason" } ] }
+
+Rules:
+1. Only mark duplicates when two or more rows clearly describe the same real assignment.
+2. Be conservative. If there is meaningful doubt, leave both rows.
+3. Prefer grouping assignments from the same source with the same due date, similar title, and compatible course names.
+4. Treat course naming variants as duplicates when they clearly refer to the same class, such as "Chem H" and "4 - Chem H (2025-2026)".
+5. Do not merge distinct weekly homework numbers, chapters, quizzes, labs, or separate parts unless they are clearly the same assignment.
+6. Keep the row with the clearest title, most specific course, due time, and URL. If tied, keep the first id in the provided list.
+7. Never invent ids.`;
+
+  const controller = new AbortController();
+  const timeoutId = setTimeout(() => controller.abort(), 20000);
+
+  try {
+    const response = await fetch('https://api.groq.com/openai/v1/chat/completions', {
+      method: 'POST',
+      headers: {
+        'Authorization': `Bearer ${groqApiKey.trim()}`,
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify({
+        model: DEDUPE_MODEL,
+        messages: [
+          { role: 'system', content: systemPrompt },
+          { role: 'user', content: `Deduplicate this assignment list:\n${JSON.stringify({ assignments: candidates })}` },
+        ],
+        temperature: 0,
+        response_format: { type: 'json_object' },
+      }),
+      signal: controller.signal,
+    });
+
+    clearTimeout(timeoutId);
+    const data = await response.json();
+    if (!response.ok) {
+      console.warn('[Activify] Assignment dedupe skipped:', data?.error?.message || response.status);
+      return { changed: false, assignments, removed: [] };
+    }
+
+    const parsed = JSON.parse(data.choices?.[0]?.message?.content || '{}');
+    const duplicateIds = collectDuplicateAssignmentIds(parsed, assignments);
+    if (duplicateIds.size === 0) {
+      await chrome.storage.local.set({ [KEYS.LAST_DEDUPE_SIGNATURE]: signature });
+      return { changed: false, assignments, removed: [] };
+    }
+
+    const cleaned = assignments.filter(a => !duplicateIds.has(a.id));
+    const removed = assignments.filter(a => duplicateIds.has(a.id));
+    await chrome.storage.local.set({
+      [KEYS.ASSIGNMENTS]: cleaned,
+      [KEYS.LAST_DEDUPE_SIGNATURE]: assignmentDedupeSignature(cleaned),
+    });
+
+    if (syncDeleted) {
+      deleteAssignmentsFromSupabase(removed.map(a => a.id)).catch(e =>
+        console.error('[Activify] Supabase dedupe delete error:', e.message)
+      );
+    }
+
+    console.log(`[Activify] Removed ${removed.length} duplicate assignment${removed.length === 1 ? '' : 's'}.`);
+    return { changed: true, assignments: cleaned, removed };
+  } catch (err) {
+    clearTimeout(timeoutId);
+    console.warn('[Activify] Assignment dedupe failed:', err.message);
+    return { changed: false, assignments, removed: [] };
+  }
+}
+
 export async function mergeAssignments(scraped, accountKey = 'default', scanUrl = '') {
   if (!scraped || scraped.length === 0) return await getAssignments();
 
@@ -138,12 +245,13 @@ export async function mergeAssignments(scraped, accountKey = 'default', scanUrl 
 
   const merged = [...otherAssignments, ...newAssignments].filter(a => !a.dueDate || a.dueDate >= todayStr);
   await chrome.storage.local.set({ [KEYS.ASSIGNMENTS]: merged });
+  const { assignments: cleaned } = await dedupeAssignmentsWithAI({ force: true, syncDeleted: true });
 
-  syncAssignmentsToSupabase(merged, source, normalizedAccountKey, user.id, isExhaustive, Array.from(coursesInScan)).catch(e =>
+  syncAssignmentsToSupabase(cleaned, source, normalizedAccountKey, user.id, isExhaustive, Array.from(coursesInScan)).catch(e =>
     console.error('[Activify] Supabase Sync Error (Assignments):', e.message)
   );
 
-  return merged;
+  return cleaned;
 }
 
 async function syncAssignmentsToSupabase(allAssignments, source, accountKey, userId, isExhaustive, coursesInScan) {
@@ -191,6 +299,49 @@ async function syncAssignmentsToSupabase(allAssignments, source, accountKey, use
   } else {
     console.log('[Activify] ℹ️ No assignments to sync.');
   }
+}
+
+async function deleteAssignmentsFromSupabase(ids) {
+  if (!ids.length) return;
+  const user = await getCurrentUser();
+  if (!user) return;
+  const { error } = await supabase.from('assignments')
+    .delete()
+    .eq('user_id', user.id)
+    .in('id', ids);
+  if (error) throw error;
+}
+
+function assignmentDedupeSignature(assignments) {
+  return assignments
+    .map(a => [
+      a.id,
+      a.source || '',
+      a.course || '',
+      a.title || '',
+      a.dueDate || '',
+      a.dueTime || '',
+      a.url || '',
+    ].join('|'))
+    .sort()
+    .join('\n');
+}
+
+function collectDuplicateAssignmentIds(parsed, assignments) {
+  const validIds = new Set(assignments.map(a => a.id));
+  const duplicateIds = new Set();
+  const groups = Array.isArray(parsed?.duplicateGroups) ? parsed.duplicateGroups : [];
+
+  for (const group of groups) {
+    if (!group || !validIds.has(group.keepId) || !Array.isArray(group.duplicateIds)) continue;
+    for (const id of group.duplicateIds) {
+      if (id && id !== group.keepId && validIds.has(id)) {
+        duplicateIds.add(id);
+      }
+    }
+  }
+
+  return duplicateIds;
 }
 
 // ── Task Helpers ──────────────────────────────────────────────────────────────
@@ -371,7 +522,6 @@ export async function setLastScan(source) {
 export async function getSettings() {
   const result = await chrome.storage.local.get(KEYS.SETTINGS);
   return result[KEYS.SETTINGS] || {
-    reminderMinsBefore: 30,
     defaultTaskDuration: 45,
     theme: 'light',
   };

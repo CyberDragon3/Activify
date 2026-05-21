@@ -12,19 +12,12 @@ import {
 console.log('[Activify] Service Worker Dependencies Loaded.');
 
 chrome.runtime.onInstalled.addListener(() => {
-  console.log('[Activify] Installed. Setting up alarms...');
-  // setupAlarms();
+  console.log('[Activify] Installed.');
 });
 
 chrome.runtime.onStartup.addListener(() => {
-  console.log('[Activify] Startup. Setting up alarms...');
-  // setupAlarms();
+  console.log('[Activify] Startup.');
 });
-
-function setupAlarms() {
-  // chrome.alarms.create('scan', { periodInMinutes: 30 });
-  // chrome.alarms.create('reminders', { periodInMinutes: 1 });
-}
 
 chrome.action.onClicked.addListener((tab) => {
   chrome.sidePanel.open({ tabId: tab.id });

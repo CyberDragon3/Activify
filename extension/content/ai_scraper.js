@@ -115,6 +115,5 @@
     if (msg.type === 'ACTIVIFY_SCAN') run();
   });
 
-  if (document.readyState === 'complete') run();
-  else window.addEventListener('load', run);
+  if (DEBUG) console.log('[Activify] Scraper ready. Waiting for manual scan.');
 })();
