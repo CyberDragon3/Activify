@@ -1,6 +1,6 @@
 {
   "name": "extension",
-  "version": "1.0.0",
+  "version": "1.2.0",
   "description": "A Chrome side-panel planner that scans school platforms on demand and helps students build schedules with Groq-powered AI.",
   "main": "index.js",
   "scripts": {

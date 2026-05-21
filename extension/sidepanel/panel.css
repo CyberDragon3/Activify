@@ -2,16 +2,21 @@
 @import url('https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@400;500;600;700&display=swap');
 
 :root {
+  --accent-h:    12;
+  --accent-s:    94%;
+  --accent-l:    68%;
+  --bg-tint:     transparent;
+
   --bg:          hsl(225, 18%, 8%);
   --surface:     hsl(228, 15%, 13%);
   --surface-2:   hsl(226, 13%, 17%);
   --surface-3:   hsl(224, 12%, 22%);
   --border:      hsl(224, 12%, 27%);
-  --text:        hsl(42, 34%, 94%);
-  --text-2:      hsl(38, 13%, 70%);
-  --text-3:      hsl(35, 9%, 49%);
-  --accent:      hsl(12, 94%, 68%);
-  --accent-soft: hsl(12, 94%, 68%, 0.14);
+  --text:        hsl(var(--accent-h), 10%, 94%);
+  --text-2:      hsl(var(--accent-h), 8%, 70%);
+  --text-3:      hsl(var(--accent-h), 6%, 49%);
+  --accent:      hsl(var(--accent-h), var(--accent-s), var(--accent-l));
+  --accent-soft: hsl(var(--accent-h), var(--accent-s), var(--accent-l), 0.14);
   --secondary:   hsl(158, 58%, 55%);
   --secondary-soft: hsl(158, 58%, 55%, 0.13);
   --green:       hsl(149, 61%, 52%);
@@ -28,7 +33,7 @@
   --radius:      14px;
   --radius-sm:   10px;
   --shadow:      0 18px 40px rgba(0,0,0,0.30);
-  --shadow-glow: 0 14px 30px hsl(12,94%,68%,0.13);
+  --shadow-glow: 0 14px 30px hsl(var(--accent-h), var(--accent-s), var(--accent-l), 0.13);
   --font-body:   'Space Grotesk', system-ui, sans-serif;
   --font-display:'Space Grotesk', system-ui, sans-serif;
   --transition:  0.18s ease;
@@ -43,9 +48,11 @@ html, body {
   overflow-x: hidden;
   font-family: var(--font-body);
   background:
-    radial-gradient(circle at 18% -10%, hsl(12, 94%, 68%, 0.10), transparent 30%),
+    radial-gradient(circle at 18% -10%, hsl(var(--accent-h), var(--accent-s), var(--accent-l), 0.10), transparent 30%),
     radial-gradient(circle at 95% 8%, hsl(158, 58%, 55%, 0.08), transparent 28%),
-    var(--bg);
+    linear-gradient(var(--bg-tint), var(--bg-tint)),
+    var(--bg) !important;
+  transition: background 0.8s ease;
   color: var(--text);
   font-size: 14px;
   line-height: 1.5;
@@ -93,6 +100,14 @@ input, select { font: inherit; }
 
 .header-actions { display: flex; gap: 6px; align-items: center; }
 
+/* ── Weather Emoji ───────────────────────────────────────────────────────── */
+#weather-emoji {
+  display: inline-flex;
+  align-items: center;
+  opacity: 0.8;
+  line-height: 1;
+}
+
 /* ── Streak Badge ────────────────────────────────────────────────────────── */
 .streak-badge {
   display: flex;
@@ -113,7 +128,7 @@ input, select { font: inherit; }
   width: 34px; height: 34px;
   border-radius: var(--radius-sm);
   display: grid; place-items: center;
-  color: var(--text-2);
+  color: hsl(var(--accent-h), 15%, 70%);
   transition: background var(--transition), color var(--transition);
 }
 .icon-btn:hover { background: hsl(228, 15%, 16%); color: var(--text); }
@@ -151,7 +166,7 @@ input, select { font: inherit; }
   font-size: 12px;
   color: var(--accent);
   font-weight: 600;
-  border-bottom: 1px solid hsl(12,94%,68%,0.22);
+  border-bottom: 1px solid hsl(var(--accent-h), var(--accent-s), var(--accent-l), 0.22);
 }
 .scan-banner.hidden { display: none; }
 
@@ -164,7 +179,10 @@ input, select { font: inherit; }
 @keyframes pulse { 0%,100%{opacity:1} 50%{opacity:0.3} }
 
 /* ── Main ────────────────────────────────────────────────────────────────── */
-.panel-main { padding: 0 0 92px; }
+.panel-main {
+  padding: 0 0 92px;
+  background: var(--bg) !important;
+}
 
 .view { display: none; padding: 0 16px; }
 .view.active { display: block; }
@@ -182,7 +200,7 @@ input, select { font: inherit; }
   font-weight: 700;
   line-height: 1;
   letter-spacing: 0;
-  background: linear-gradient(90deg, var(--text) 58%, hsl(12, 94%, 78%));
+  background: linear-gradient(90deg, var(--text) 58%, hsl(var(--accent-h), var(--accent-s), 78%));
   -webkit-background-clip: text;
   -webkit-text-fill-color: transparent;
   background-clip: text;
@@ -215,12 +233,12 @@ input, select { font: inherit; }
   padding: 5px 12px;
   border-radius: 999px;
   background: var(--accent-soft);
-  border: 1px solid hsl(12,94%,68%,0.26);
+  border: 1px solid hsl(var(--accent-h), var(--accent-s), var(--accent-l), 0.26);
   transition: background var(--transition);
   text-transform: none;
   letter-spacing: 0;
 }
-.add-btn:hover { background: hsl(12,94%,68%,0.20); }
+.add-btn:hover { background: hsl(var(--accent-h), var(--accent-s), var(--accent-l), 0.20); }
 
 /* ── Task Cards ──────────────────────────────────────────────────────────── */
 .task-list { display: flex; flex-direction: column; gap: 10px; }
@@ -245,7 +263,7 @@ input, select { font: inherit; }
   -webkit-user-select: none;
 }
 .task-card:hover {
-  border-color: hsl(12,94%,68%,0.28);
+  border-color: hsl(var(--accent-h), var(--accent-s), var(--accent-l), 0.28);
   box-shadow: var(--shadow-glow);
 }
 .task-card.done { opacity: 0.4; }
@@ -263,7 +281,7 @@ input, select { font: inherit; }
 .task-check.checked {
   background: var(--accent);
   border-color: var(--accent);
-  box-shadow: 0 8px 16px hsl(12,94%,68%,0.18);
+  box-shadow: 0 8px 16px hsl(var(--accent-h), var(--accent-s), var(--accent-l), 0.18);
 }
 .task-check.checked::after {
   content: '';
@@ -342,7 +360,7 @@ input, select { font: inherit; }
 .week-day.active {
   background: var(--accent);
   color: hsl(225, 18%, 8%);
-  box-shadow: 0 14px 28px hsl(12,94%,68%,0.22);
+  box-shadow: 0 14px 28px hsl(var(--accent-h), var(--accent-s), var(--accent-l), 0.22);
 }
 .week-day.today:not(.active) { border-color: var(--accent); color: var(--text); }
 
@@ -383,7 +401,7 @@ input, select { font: inherit; }
   background: var(--accent);
   border-color: var(--accent);
   color: hsl(225, 18%, 8%);
-  box-shadow: 0 10px 20px hsl(12,94%,68%,0.20);
+  box-shadow: 0 10px 20px hsl(var(--accent-h), var(--accent-s), var(--accent-l), 0.20);
 }
 .filter-chip:hover:not(.active) { background: var(--surface-2); color: var(--text); }
 
@@ -409,7 +427,7 @@ input, select { font: inherit; }
   transition: border-color var(--transition), box-shadow var(--transition);
 }
 .assignment-card:hover {
-  border-color: hsl(12,94%,68%,0.25);
+  border-color: hsl(var(--accent-h), var(--accent-s), var(--accent-l), 0.25);
   box-shadow: var(--shadow-glow);
 }
 .assignment-card.overdue { border-left: 3px solid var(--warn); }
@@ -517,7 +535,7 @@ input, select { font: inherit; }
 .field input:focus, .field select:focus {
   outline: none;
   border-color: var(--accent);
-  box-shadow: 0 0 0 3px hsl(12,94%,68%,0.12);
+  box-shadow: 0 0 0 3px hsl(var(--accent-h), var(--accent-s), var(--accent-l), 0.12);
 }
 .field select option { background: var(--surface); }
 
@@ -529,7 +547,7 @@ input, select { font: inherit; }
   font-size: 13px;
   font-weight: 700;
   transition: opacity var(--transition), box-shadow var(--transition);
-  box-shadow: 0 12px 24px hsl(12,94%,68%,0.18);
+  box-shadow: 0 12px 24px hsl(var(--accent-h), var(--accent-s), var(--accent-l), 0.18);
 }
 .btn-primary:hover { opacity: 0.88; }
 
@@ -551,17 +569,17 @@ input, select { font: inherit; }
   width: 48px;
   height: 48px;
   border-radius: 50%;
-  background: linear-gradient(135deg, var(--accent), hsl(33, 94%, 66%));
+  background: linear-gradient(135deg, var(--accent), hsl(var(--accent-h), 60%, 55%));
   color: #fff;
   display: grid;
   place-items: center;
-  box-shadow: 0 14px 28px hsl(12,94%,68%,0.25);
+  box-shadow: 0 14px 28px hsl(var(--accent-h), var(--accent-s), var(--accent-l), 0.25);
   z-index: 50;
   transition: transform var(--transition), box-shadow var(--transition);
 }
 .ai-bubble:hover {
   transform: translateY(-1px) scale(1.04);
-  box-shadow: 0 16px 34px hsl(12,94%,68%,0.34);
+  box-shadow: 0 16px 34px hsl(var(--accent-h), var(--accent-s), var(--accent-l), 0.34);
 }
 
 /* ── AI Chat Drawer ───────────────────────────────────────────────────────── */
@@ -617,7 +635,7 @@ input, select { font: inherit; }
   border-radius: 999px;
   background: var(--accent-soft);
   color: var(--accent);
-  border: 1px solid hsl(12,94%,68%,0.24);
+  border: 1px solid hsl(var(--accent-h), var(--accent-s), var(--accent-l), 0.24);
   font-size: 10px;
   font-weight: 800;
   letter-spacing: 0;
@@ -649,7 +667,7 @@ input, select { font: inherit; }
 }
 .quick-prompt-btn:hover {
   background: var(--accent-soft);
-  border-color: hsl(12,94%,68%,0.34);
+  border-color: hsl(var(--accent-h), var(--accent-s), var(--accent-l), 0.34);
   color: var(--accent);
 }
 
@@ -683,7 +701,7 @@ input, select { font: inherit; }
   color: hsl(225, 18%, 8%);
   align-self: flex-end;
   border-bottom-right-radius: 4px;
-  box-shadow: 0 8px 20px hsl(12,94%,68%,0.18);
+  box-shadow: 0 8px 20px hsl(var(--accent-h), var(--accent-s), var(--accent-l), 0.18);
 }
 .ai-message.loading {
   background: hsl(222, 13%, 19%);
@@ -725,7 +743,7 @@ input, select { font: inherit; }
 }
 .ai-input:focus {
   border-color: var(--accent);
-  box-shadow: 0 0 0 3px hsl(12,94%,68%,0.12);
+  box-shadow: 0 0 0 3px hsl(var(--accent-h), var(--accent-s), var(--accent-l), 0.12);
 }
 .ai-input::placeholder { color: var(--text-3); }
 
@@ -737,7 +755,7 @@ input, select { font: inherit; }
   display: grid; place-items: center;
   flex-shrink: 0;
   transition: opacity var(--transition), box-shadow var(--transition);
-  box-shadow: 0 8px 18px hsl(12,94%,68%,0.22);
+  box-shadow: 0 8px 18px hsl(var(--accent-h), var(--accent-s), var(--accent-l), 0.22);
 }
 .ai-send:hover { opacity: 0.85; }
 .ai-send:disabled { opacity: 0.3; cursor: not-allowed; }
@@ -960,7 +978,7 @@ input, select { font: inherit; }
 .api-key-row input:focus {
   outline: none;
   border-color: var(--accent);
-  box-shadow: 0 0 0 3px hsl(12,94%,68%,0.12);
+  box-shadow: 0 0 0 3px hsl(var(--accent-h), var(--accent-s), var(--accent-l), 0.12);
 }
 
 .api-key-row .btn-primary {

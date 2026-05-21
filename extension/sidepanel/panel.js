@@ -23,7 +23,10 @@ let weekViewMode = 'list';
 document.addEventListener('DOMContentLoaded', init);
 
 async function init() {
-  // SINGLE auth check — remove all others
+  import('./weather-theme.js')
+    .then(m => m.applyWeatherTheme())
+    .catch(() => {});
+
   const user = await getCurrentUser();
   if (!user) {
     window.location.replace('auth.html');
@@ -379,77 +382,75 @@ function bindDragStrike(card, titleWrap, canvas, task, undoBtn) {
 
   // ── listeners on CARD not titleWrap ──
   card.addEventListener('pointerdown', (e) => {
-  e.preventDefault();
-  if (task.completed) return;
-  if (e.target.closest('button')) return;
-  const cardRect = card.getBoundingClientRect();
-  const titleRect = titleWrap.getBoundingClientRect();
-  dragging = true;
-  // startX relative to card left edge
-  startX = e.clientX - cardRect.left;
-  // offset so line starts at left edge of titleWrap
-  const titleOffset = titleRect.left - cardRect.left;
-  startX = Math.max(0, startX - titleOffset);
-  lastX = startX;
-  lastTime = Date.now();
-  points = [{ x: startX, jitter: 0 }];
-  resizeCanvas();
-  card.setPointerCapture(e.pointerId);
-});
+    e.preventDefault();
+    if (task.completed) return;
+    if (e.target.closest('button')) return;
+    const cardRect = card.getBoundingClientRect();
+    const titleRect = titleWrap.getBoundingClientRect();
+    dragging = true;
+    startX = e.clientX - cardRect.left;
+    const titleOffset = titleRect.left - cardRect.left;
+    startX = Math.max(0, startX - titleOffset);
+    lastX = startX;
+    lastTime = Date.now();
+    points = [{ x: startX, jitter: 0 }];
+    resizeCanvas();
+    card.setPointerCapture(e.pointerId);
+  });
 
-card.addEventListener('pointermove', (e) => {
-  if (!dragging) return;
-  const cardRect = card.getBoundingClientRect();
-  const titleRect = titleWrap.getBoundingClientRect();
-  const titleOffset = titleRect.left - cardRect.left;
-  const x = Math.max(0, (e.clientX - cardRect.left) - titleOffset);
+  card.addEventListener('pointermove', (e) => {
+    if (!dragging) return;
+    const cardRect = card.getBoundingClientRect();
+    const titleRect = titleWrap.getBoundingClientRect();
+    const titleOffset = titleRect.left - cardRect.left;
+    const x = Math.max(0, (e.clientX - cardRect.left) - titleOffset);
 
-  if (x < lastX - 5) {
-    points = [];
-    ctx.clearRect(0, 0, canvas.width, canvas.height);
+    if (x < lastX - 5) {
+      points = [];
+      ctx.clearRect(0, 0, canvas.width, canvas.height);
+      lastX = x;
+      return;
+    }
+
+    const now = Date.now();
+    const speed = Math.abs(x - lastX) / Math.max(now - lastTime, 1);
+    const jitter = Math.min(speed * 1.5, 3) * (Math.random() - 0.5) * 2;
+
+    points.push({ x, jitter });
     lastX = x;
-    return;
-  }
+    lastTime = now;
 
-  const now = Date.now();
-  const speed = Math.abs(x - lastX) / Math.max(now - lastTime, 1);
-  const jitter = Math.min(speed * 1.5, 3) * (Math.random() - 0.5) * 2;
+    const progress = Math.min((x - startX) / (canvas.width - startX), 1);
+    drawLine(points, progress);
+  });
 
-  points.push({ x, jitter });
-  lastX = x;
-  lastTime = now;
+  card.addEventListener('pointerup', async (e) => {
+    if (!dragging) return;
+    dragging = false;
 
-  const progress = Math.min((x - startX) / (canvas.width - startX), 1);
-  drawLine(points, progress);
-});
+    const cardRect = card.getBoundingClientRect();
+    const titleRect = titleWrap.getBoundingClientRect();
+    const titleOffset = titleRect.left - cardRect.left;
+    const x = Math.max(0, (e.clientX - cardRect.left) - titleOffset);
+    const progress = (x - startX) / (canvas.width - startX);
 
-card.addEventListener('pointerup', async (e) => {
-  if (!dragging) return;
-  dragging = false;
+    if (progress >= COMMIT_RATIO) {
+      drawCommitted();
+      card.classList.add('shimmer');
+      setTimeout(() => card.classList.remove('shimmer'), 500);
 
-  const cardRect = card.getBoundingClientRect();
-  const titleRect = titleWrap.getBoundingClientRect();
-  const titleOffset = titleRect.left - cardRect.left;
-  const x = Math.max(0, (e.clientX - cardRect.left) - titleOffset);
-  const progress = (x - startX) / (canvas.width - startX);
+      task.completed = true;
+      await upsertTask(task);
+      undoBtn.classList.add('visible');
 
-  if (progress >= COMMIT_RATIO) {
-    drawCommitted();
-    card.classList.add('shimmer');
-    setTimeout(() => card.classList.remove('shimmer'), 500);
-
-    task.completed = true;
-    await upsertTask(task);
-    undoBtn.classList.add('visible');
-
-    card.style.transition = 'opacity 0.3s ease';
-    setTimeout(() => { card.style.opacity = '0.35'; }, 400);
-    getTasks().then(t => updateStreak(t.filter(t => t.date === today())));
-  } else {
-    ctx.clearRect(0, 0, canvas.width, canvas.height);
-    points = [];
-  }
-});
+      card.style.transition = 'opacity 0.3s ease';
+      setTimeout(() => { card.style.opacity = '0.35'; }, 400);
+      getTasks().then(t => updateStreak(t.filter(t => t.date === today())));
+    } else {
+      ctx.clearRect(0, 0, canvas.width, canvas.height);
+      points = [];
+    }
+  });
 
   card.addEventListener('pointercancel', () => {
     dragging = false;
@@ -710,7 +711,7 @@ function categoryBorderColor(cat) {
 
 // ─── UPCOMING VIEW ────────────────────────────────────────────────────────────
 async function renderUpcoming() {
-  const assignments = await getAssignments(); // no args
+  const assignments = await getAssignments();
   const container = document.getElementById('upcoming-list');
   container.innerHTML = '';
 
@@ -776,7 +777,6 @@ function buildTaskCard(task) {
   const body = document.createElement('div');
   body.className = 'task-body';
 
-  // Title wrapped for canvas overlay
   const titleWrap = document.createElement('div');
   titleWrap.className = 'task-title-wrap';
   titleWrap.style.position = 'relative';
@@ -812,23 +812,22 @@ function buildTaskCard(task) {
   const actions = document.createElement('div');
   actions.className = 'task-actions';
 
-  // Undo button — hidden until committed
   const undoBtn = document.createElement('button');
   undoBtn.className = 'task-btn undo';
   undoBtn.title = 'Undo';
   undoBtn.textContent = '↩';
   undoBtn.addEventListener('click', async (e) => {
-  e.stopPropagation();
-  task.completed = false;
-  await upsertTask(task);
-  card.style.opacity = '1';
-  card.style.transition = '';
-  card.classList.remove('fading', 'shimmer', 'struck');
-  const ctx = canvas.getContext('2d');
-  ctx.clearRect(0, 0, canvas.width, canvas.height);
-  undoBtn.classList.remove('visible');
-  await updateStreak(await getTasks().then(t => t.filter(t => t.date === today())));
-});
+    e.stopPropagation();
+    task.completed = false;
+    await upsertTask(task);
+    card.style.opacity = '1';
+    card.style.transition = '';
+    card.classList.remove('fading', 'shimmer', 'struck');
+    const ctx = canvas.getContext('2d');
+    ctx.clearRect(0, 0, canvas.width, canvas.height);
+    undoBtn.classList.remove('visible');
+    await updateStreak(await getTasks().then(t => t.filter(t => t.date === today())));
+  });
 
   const delBtn = document.createElement('button');
   delBtn.className = 'task-btn danger';
@@ -847,7 +846,6 @@ function buildTaskCard(task) {
   card.appendChild(body);
   card.appendChild(actions);
 
-  // Draw committed line if already done
   if (task.completed) {
     card.style.opacity = '0.35';
     requestAnimationFrame(() => {

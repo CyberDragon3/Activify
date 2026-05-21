@@ -170,24 +170,6 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
     return true; // Keep channel open
   }
 
-  if (message.type === 'ACTIVIFY_ASSIGNMENTS_SCRAPED') {
-    const { source, assignments, accountKey, url } = message;
-    getCurrentUser().then(user => {
-      if (!user) {
-        console.warn('[Activify] Legacy Scrape: No user found.');
-        sendResponse({ ok: false, error: 'No user' });
-        return;
-      }
-      mergeAssignments(assignments, user.id, accountKey || 'default', url || '').then(async () => {
-        await setLastScan(source);
-        console.log(`[Activify] Sending ACTIVIFY_REFRESH after legacy scrape for ${source}`);
-        chrome.runtime.sendMessage({ type: 'ACTIVIFY_REFRESH' }).catch(() => {});
-        sendResponse({ ok: true });
-      }).catch(() => sendResponse({ ok: false }));
-    });
-    return true;
-  }
-
   if (message.type === 'ACTIVIFY_REQUEST_SCAN') {
     triggerScanOnSchoolSites(true).then((triggered) => {
       console.log(`[Activify] Scan request result: triggered=${triggered}`);
