@@ -44,7 +44,10 @@ document.getElementById('btn-submit').addEventListener('click', async () => {
     if (mode === 'signin') {
       result = await supabase.auth.signInWithPassword({ email, password });
     } else {
-      result = await supabase.auth.signUp({ email, password });
+      result = await supabase.auth.signUp({
+        email, password,
+        options: { emailRedirectTo: 'https://activify-web.vercel.app/confirm.html' }
+      });
     }
 
     console.log('[Activify] Supabase responded:', result);

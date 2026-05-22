@@ -4824,13 +4824,6 @@ async function clearAuth() {
   await supabase2.auth.signOut();
   console.log("[Activify] Auth cleared.");
 }
-async function signInWithGoogle() {
-  const { data, error } = await supabase2.auth.signInWithOAuth({
-    provider: "google",
-    options: { redirectTo: chrome.identity.getRedirectURL() }
-  });
-  return { data, error };
-}
 async function signOut() {
   await supabase2.auth.signOut();
   window.location.replace("auth.html");
@@ -5233,7 +5226,6 @@ export {
   saveSettings,
   saveTasks,
   setLastScan,
-  signInWithGoogle,
   signOut,
   supabase2 as supabase,
   today,

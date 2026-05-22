@@ -470,7 +470,7 @@ async function renderToday() {
   contentEl.innerHTML = '';
 
   if (todayViewMode === 'calendar') {
-    contentEl.appendChild(buildCalendarGrid(todayTasks, dueTodayAssignments));
+    contentEl.appendChild(buildCalendarGrid(todayTasks));
   } else {
     const tasksLabel = makeLabel('My Tasks', true);
     contentEl.appendChild(tasksLabel);
@@ -529,7 +529,7 @@ async function renderWeekDay() {
   list.appendChild(label);
 
   if (weekViewMode === 'calendar') {
-    list.appendChild(buildCalendarGrid(dayTasks, dayAssignments));
+    list.appendChild(buildCalendarGrid(dayTasks));
     return;
   }
 
@@ -563,7 +563,7 @@ const CAL_START_HOUR = 6;
 const CAL_END_HOUR   = 23;
 const HOUR_HEIGHT    = 80;
 
-function buildCalendarGrid(tasks, assignments) {
+function buildCalendarGrid(tasks) {
   const wrapper = document.createElement('div');
   wrapper.className = 'cal-wrapper';
 
@@ -657,24 +657,6 @@ function buildCalendarGrid(tasks, assignments) {
       block.classList.toggle('done', task.completed);
     });
     grid.appendChild(block);
-  });
-
-  assignments.forEach(a => {
-    const h = a.dueTime ? parseInt(a.dueTime.split(':')[0]) : null;
-    const m = a.dueTime ? parseInt(a.dueTime.split(':')[1]) : null;
-    const taskMins = h !== null ? h * 60 + m : startMins;
-    if (taskMins < startMins || taskMins > endMins) return;
-    const top = ((taskMins - startMins) / 60) * HOUR_HEIGHT;
-    const marker = document.createElement('div');
-    marker.className = 'cal-due-marker';
-    marker.style.top = `${top}px`;
-    marker.style.borderLeftColor = sourceColor(a.source);
-    marker.innerHTML = `<span>📌 ${a.title}</span>`;
-    if (a.url) {
-      marker.style.cursor = 'pointer';
-      marker.addEventListener('click', () => window.open(a.url, '_blank'));
-    }
-    grid.appendChild(marker);
   });
 
   wrapper.appendChild(grid);
