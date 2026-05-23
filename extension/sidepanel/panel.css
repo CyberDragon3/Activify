@@ -101,13 +101,6 @@ input, select { font: inherit; }
 .header-actions { display: flex; gap: 6px; align-items: center; }
 
 /* ── Weather Emoji ───────────────────────────────────────────────────────── */
-#weather-emoji {
-  display: inline-flex;
-  align-items: center;
-  opacity: 0.8;
-  line-height: 1;
-}
-
 /* ── Streak Badge ────────────────────────────────────────────────────────── */
 .streak-badge {
   display: flex;
@@ -958,6 +951,31 @@ input, select { font: inherit; }
   text-transform: uppercase;
   letter-spacing: 0.1em;
   color: var(--text-3);
+}
+
+.theme-picker {
+  display: flex;
+  gap: 8px;
+  flex-wrap: wrap;
+  margin-top: 8px;
+}
+
+.theme-swatch {
+  width: 32px;
+  height: 32px;
+  border-radius: 50%;
+  border: 2px solid transparent;
+  cursor: pointer;
+  transition: border-color 0.15s, transform 0.15s;
+}
+
+.theme-swatch:hover {
+  transform: scale(1.15);
+}
+
+.theme-swatch.active {
+  border-color: var(--text);
+  transform: scale(1.15);
 }
 
 .api-key-row {

@@ -1,5 +1,5 @@
 (function () {
-  const DEBUG = true;
+  const DEBUG = false;
 
   function getType() {
     const domain = window.location.hostname;

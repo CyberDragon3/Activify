@@ -8,7 +8,6 @@ const ChromeStorageAdapter = {
     try {
       const result = await chrome.storage.local.get(key);
       const value = result[key] ?? null;
-      console.log(`[Activify] Storage GET ${key}:`, value ? 'Found' : 'Null');
       return value;
     } catch (err) {
       console.error(`[Activify] Storage GET Error ${key}:`, err);
@@ -17,7 +16,6 @@ const ChromeStorageAdapter = {
   },
   setItem: async (key, value) => {
     try {
-      console.log(`[Activify] Storage SET ${key}`);
       await chrome.storage.local.set({ [key]: value });
     } catch (err) {
       console.error(`[Activify] Storage SET Error ${key}:`, err);
@@ -25,7 +23,6 @@ const ChromeStorageAdapter = {
   },
   removeItem: async (key) => {
     try {
-      console.log(`[Activify] Storage REMOVE ${key}`);
       await chrome.storage.local.remove(key);
     } catch (err) {
       console.error(`[Activify] Storage REMOVE Error ${key}:`, err);
@@ -65,20 +62,17 @@ export async function getCurrentUser() {
   if (user) return user;
 
   if (sessionError) console.error('[Activify] getSession error:', sessionError.message);
-  if (userError) console.debug('[Activify] getUser error (expected if logged out):', userError.message);
   
   return null;
 }
 
 export async function clearAuth() {
-  console.log('[Activify] Clearing all auth keys...');
   const all = await chrome.storage.local.get(null);
   const keys = Object.keys(all).filter(k => k.startsWith('sb-') || k.includes('auth-token'));
   if (keys.length > 0) {
     await chrome.storage.local.remove(keys);
   }
   await supabase.auth.signOut();
-  console.log('[Activify] Auth cleared.');
 }
 
 export async function signOut() {
@@ -188,7 +182,6 @@ Rules:
       );
     }
 
-    console.log(`[Activify] Removed ${removed.length} duplicate assignment${removed.length === 1 ? '' : 's'}.`);
     return { changed: true, assignments: cleaned, removed };
   } catch (err) {
     clearTimeout(timeoutId);
@@ -247,7 +240,6 @@ export async function mergeAssignments(scraped, accountKey = 'default', scanUrl 
 }
 
 async function syncAssignmentsToSupabase(allAssignments, source, accountKey, userId, isExhaustive, coursesInScan) {
-  console.log(`[Activify] 🔄 Syncing Assignments to Supabase. User: ${userId}, Source: ${source}`);
   
   const { error: deleteError } = await supabase.from('assignments')
     .delete()
@@ -279,17 +271,13 @@ async function syncAssignmentsToSupabase(allAssignments, source, accountKey, use
       scanned_at: a.scannedAt,
     }));
 
-  console.log(`[Activify] 📤 Upserting ${rowsToSync.length} assignment rows...`);
-
   if (rowsToSync.length > 0) {
     const { data, error: insertError } = await supabase.from('assignments').upsert(rowsToSync, { onConflict: 'id' });
     if (insertError) {
       console.error('[Activify] ❌ Supabase Insert Error:', insertError.message, insertError);
     } else {
-      console.log('[Activify] ✅ Assignments sync complete.', data);
     }
   } else {
-    console.log('[Activify] ℹ️ No assignments to sync.');
   }
 }
 
@@ -348,7 +336,6 @@ export async function saveTasks(tasks) {
 }
 
 export async function upsertTask(task) {
-  console.log('[Activify] 💾 Local upsert task:', task.title);
   const tasks = await getTasks();
   const idx = tasks.findIndex(t => t.id === task.id);
   if (idx >= 0) tasks[idx] = task;
@@ -357,7 +344,6 @@ export async function upsertTask(task) {
 
   const user = await getCurrentUser();
   if (user) {
-    console.log(`[Activify] 🔄 Syncing task "${task.title}" to Supabase for user ${user.id}`);
     const { data, error } = await supabase.from('tasks').upsert({
       id: task.id,
       user_id: user.id,
@@ -374,7 +360,6 @@ export async function upsertTask(task) {
     if (error) {
       console.error('[Activify] ❌ Supabase Upsert Error (Task):', error.message, error);
     } else {
-      console.log('[Activify] ✅ Task sync complete.', data);
     }
   } else {
     console.warn('[Activify] ⚠️ Cannot sync task: No user logged in.');
@@ -386,10 +371,8 @@ export async function deleteTask(id) {
   await saveTasks(tasks.filter(t => t.id !== id));
   const user = await getCurrentUser();
   if (user) {
-    console.log(`[Activify] 🗑️ Deleting task ${id} from Supabase...`);
     const { error } = await supabase.from('tasks').delete().eq('id', id).eq('user_id', user.id);
     if (error) console.error('[Activify] ❌ Supabase Delete Error (Task):', error.message);
-    else console.log('[Activify] ✅ Task deletion synced.');
   }
 }
 
@@ -398,10 +381,8 @@ export async function clearAiTasks() {
   await saveTasks(tasks.filter(t => !String(t.id).startsWith('ai_')));
   const user = await getCurrentUser();
   if (user) {
-    console.log('[Activify] 🧹 Clearing AI tasks from Supabase...');
     const { error } = await supabase.from('tasks').delete().like('id', 'ai_%').eq('user_id', user.id);
     if (error) console.error('[Activify] ❌ Supabase Clear AI Error:', error.message);
-    else console.log('[Activify] ✅ AI tasks cleared from Supabase.');
   }
 }
 
@@ -413,7 +394,6 @@ export async function batchUpsertTasks(newTasks) {
 
   const user = await getCurrentUser();
   if (user && newTasks.length > 0) {
-    console.log(`[Activify] 🔄 Batch syncing ${newTasks.length} tasks to Supabase...`);
     const rows = newTasks.map(task => ({
       id: task.id,
       user_id: user.id,
@@ -430,7 +410,6 @@ export async function batchUpsertTasks(newTasks) {
     if (error) {
       console.error('[Activify] ❌ Supabase Batch Upsert Error:', error.message, error);
     } else {
-      console.log('[Activify] ✅ Batch task sync complete.', data);
     }
   }
 }
@@ -440,11 +419,8 @@ export async function batchUpsertTasks(newTasks) {
 export async function pullFromSupabase() {
   const user = await getCurrentUser();
   if (!user) {
-    console.log('[Activify] ℹ️ Skipping pullFromSupabase: No user.');
     return;
   }
-
-  console.log(`[Activify] 📥 Pulling data from Supabase for user ${user.id}...`);
 
   const [{ data: tasks, error: taskErr }, { data: assignments, error: assignErr }] = await Promise.all([
     supabase.from('tasks').select('*').eq('user_id', user.id),
@@ -461,7 +437,6 @@ export async function pullFromSupabase() {
   if (assignErr) console.error('[Activify] ❌ Supabase Pull Error (Assignments):', assignErr.message, assignErr);
 
   if (tasks) {
-    console.log(`[Activify] 📥 Received ${tasks.length} tasks from Supabase.`);
     if (tasks.length > 0) {
       const mapped = tasks.map(t => ({
         id: t.id,
@@ -479,7 +454,6 @@ export async function pullFromSupabase() {
   }
 
   if (assignments) {
-    console.log(`[Activify] 📥 Received ${assignments.length} assignments from Supabase.`);
     if (assignments.length > 0) {
       const mapped = assignments.map(a => ({
         id: a.id,

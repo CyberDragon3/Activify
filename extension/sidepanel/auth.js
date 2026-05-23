@@ -1,10 +1,8 @@
 import { supabase } from '../shared/storage.js';
 
 supabase.auth.onAuthStateChange(async (event, session) => {
-  console.log(`[Activify] Auth Event: ${event}`, session ? 'Session exists' : 'No session');
   
   if ((event === 'SIGNED_IN' || event === 'INITIAL_SESSION' || event === 'TOKEN_REFRESHED') && session) {
-    console.log('[Activify] Valid session detected, redirecting...');
     // Use a small delay to ensure storage has persisted before navigation
     setTimeout(() => {
       window.location.replace('index.html');
@@ -34,7 +32,6 @@ document.getElementById('btn-submit').addEventListener('click', async () => {
     return;
   }
 
-  console.log('[Activify] Login started:', { email, mode });
   btn.disabled = true;
   btn.textContent = 'Loading...';
   errorEl.textContent = '';
@@ -50,8 +47,6 @@ document.getElementById('btn-submit').addEventListener('click', async () => {
       });
     }
 
-    console.log('[Activify] Supabase responded:', result);
-
     if (result.error) {
       console.error('[Activify] Auth Error:', result.error.message);
       throw result.error;
@@ -64,7 +59,6 @@ document.getElementById('btn-submit').addEventListener('click', async () => {
     }
 
     if (result.data?.session) {
-      console.log('[Activify] Redirecting to index.html...');
       window.location.replace('index.html');
     } else if (mode === 'signin') {
       console.warn('[Activify] Sign in successful but no session returned?');
@@ -77,7 +71,6 @@ document.getElementById('btn-submit').addEventListener('click', async () => {
   } finally {
     // Only reset if we are not redirecting or if we are in signup mode
     if (mode === 'signup' || errorEl.textContent !== '') {
-      console.log('[Activify] Resetting button state');
       btn.disabled = false;
       btn.textContent = mode === 'signin' ? 'Sign In' : 'Create Account';
     }

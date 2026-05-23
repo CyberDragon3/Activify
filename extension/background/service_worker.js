@@ -1,5 +1,3 @@
-console.log('[Activify] Service Worker Loading...');
-
 import { 
   getTasks, 
   getSettings, 
@@ -9,14 +7,10 @@ import {
   getCurrentUser 
 } from '../shared/storage.js';
 
-console.log('[Activify] Service Worker Dependencies Loaded.');
-
 chrome.runtime.onInstalled.addListener(() => {
-  console.log('[Activify] Installed.');
 });
 
 chrome.runtime.onStartup.addListener(() => {
-  console.log('[Activify] Startup.');
 });
 
 chrome.action.onClicked.addListener((tab) => {
@@ -57,7 +51,6 @@ CRITICAL RULES — violating any rule means a wrong answer:
   const timeoutId = setTimeout(() => controller.abort(), 25000);
 
   try {
-    console.log('[Activify] Fetching from Groq API...');
     const response = await fetch('https://api.groq.com/openai/v1/chat/completions', {
       method: 'POST',
       headers: {
@@ -77,7 +70,6 @@ CRITICAL RULES — violating any rule means a wrong answer:
     });
 
     clearTimeout(timeoutId);
-    console.log(`[Activify] Groq API Response status: ${response.status}`);
     const data = await response.json();
     
     if (!response.ok) {
@@ -91,7 +83,6 @@ CRITICAL RULES — violating any rule means a wrong answer:
     }
 
     const content = JSON.parse(data.choices[0].message.content);
-    console.log(`[Activify] AI extracted ${content.assignments?.length || 0} potential assignments`);
     if (!content.assignments || !Array.isArray(content.assignments)) return [];
 
     const todayStr = todayDate;
@@ -124,23 +115,17 @@ CRITICAL RULES — violating any rule means a wrong answer:
 
 // --- MESSAGE HANDLER ---
 chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
-  console.log(`[Activify] Message received: ${message.type}`);
-
   if (message.type === 'ACTIVIFY_AI_DATA_COLLECTED') {
     const { source, rawText, accountKey, url } = message;
-    console.log(`[Activify] Processing AI data from ${source} (${accountKey}), rawText length: ${rawText.length}`);
 
     // Helper to process with user
     const processData = async (user) => {
-      console.log(`[Activify] Processing for user: ${user.id}`);
       const newAssignments = await parseAssignmentsWithAI(rawText, source);
       if (!newAssignments) {
         console.warn(`[Activify] AI parsing failed or returned null for ${source}`);
       } else {
-        console.log(`[Activify] AI found ${newAssignments.length} assignments for ${source}`);
         await mergeAssignments(newAssignments, accountKey, url); 
       }
-      console.log(`[Activify] Sending ACTIVIFY_REFRESH after processing ${source}`);
       chrome.runtime.sendMessage({ type: 'ACTIVIFY_REFRESH' }).catch(() => {});
       sendResponse({ ok: true });
     };
@@ -150,11 +135,9 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
       if (user) {
         await processData(user);
       } else {
-        console.log('[Activify] User not found immediately in SW, retrying in 1.5s...');
         setTimeout(async () => {
           const userRetry = await getCurrentUser();
           if (userRetry) {
-            console.log('[Activify] User found after retry.');
             await processData(userRetry);
           } else {
             console.error('[Activify] No user found in background script after retry. Are you logged in?');
@@ -172,7 +155,6 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
 
   if (message.type === 'ACTIVIFY_REQUEST_SCAN') {
     triggerScanOnSchoolSites(true).then((triggered) => {
-      console.log(`[Activify] Scan request result: triggered=${triggered}`);
       sendResponse({ ok: triggered });
     });
     return true;
@@ -192,7 +174,6 @@ async function triggerScanOnSchoolSites(activeOnly = false) {
     if (!tab.url) continue;
     if (!patterns.some(p => p.test(tab.url))) continue;
 
-    console.log(`[Activify] Triggering scan on tab ${tab.id}: ${tab.url}`);
     chrome.tabs.sendMessage(tab.id, { type: 'ACTIVIFY_SCAN' }).catch(() => {
       console.warn(`[Activify] Failed to send ACTIVIFY_SCAN to tab ${tab.id}`);
     });

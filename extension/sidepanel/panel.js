@@ -6,7 +6,6 @@ import {
 } from '../shared/storage.js';
 
 // Expose helper to console for Task 5
-window.activifyClearAuth = clearAuth;
 import { sendMessage, applyTasksFromResponse, QUICK_PROMPTS } from './ai.js';
 
 // ─── State ────────────────────────────────────────────────────────────────────
@@ -19,19 +18,46 @@ let aiLoading = false;
 let todayViewMode = 'list';
 let weekViewMode = 'list';
 
+// ─── Theme ──────────────────────────────────────────────────────────────────────
+const THEMES = {
+  orange:  { accentH: 24,  accentS: 94, accentL: 68, bgTint: 'hsla(24, 94%, 68%, 0.03)' },
+  blue:    { accentH: 210, accentS: 60, accentL: 60, bgTint: 'hsla(210, 30%, 50%, 0.04)' },
+  green:   { accentH: 150, accentS: 50, accentL: 55, bgTint: 'hsla(150, 30%, 50%, 0.04)' },
+  purple:  { accentH: 270, accentS: 50, accentL: 65, bgTint: 'hsla(270, 30%, 60%, 0.04)' },
+  pink:    { accentH: 330, accentS: 60, accentL: 65, bgTint: 'hsla(330, 30%, 60%, 0.04)' },
+  teal:    { accentH: 180, accentS: 50, accentL: 55, bgTint: 'hsla(180, 30%, 50%, 0.04)' },
+  warm:    { accentH: 35,  accentS: 70, accentL: 65, bgTint: 'hsla(35, 20%, 50%, 0.04)' },
+  moon:    { accentH: 220, accentS: 20, accentL: 65, bgTint: 'hsla(220, 30%, 30%, 0.08)' },
+};
+
+const THEME_KEY = 'activify_theme';
+
+async function getStoredTheme() {
+  const result = await chrome.storage.local.get(THEME_KEY);
+  return result[THEME_KEY] || 'orange';
+}
+
+function applyTheme(name) {
+  const theme = THEMES[name] || THEMES.orange;
+  const root = document.documentElement;
+  root.style.setProperty('--accent-h', theme.accentH);
+  root.style.setProperty('--accent-s', theme.accentS + '%');
+  root.style.setProperty('--accent-l', theme.accentL + '%');
+  root.style.setProperty('--bg-tint', theme.bgTint);
+}
+
 // ─── Boot ─────────────────────────────────────────────────────────────────────
 document.addEventListener('DOMContentLoaded', init);
 
 async function init() {
-  import('./weather-theme.js')
-    .then(m => m.applyWeatherTheme())
-    .catch(() => {});
-
   const user = await getCurrentUser();
   if (!user) {
     window.location.replace('auth.html');
     return;
   }
+
+  const theme = await getStoredTheme();
+  applyTheme(theme);
 
   await pullFromSupabase().catch(() => {});
   await dedupeAssignmentsWithAI().catch(() => {});
@@ -49,7 +75,7 @@ async function init() {
 // Global listener (outside init)
 chrome.runtime.onMessage.addListener((msg) => {
   if (msg.type === 'ACTIVIFY_REFRESH') {
-    console.log('[Activify] Received ACTIVIFY_REFRESH message');
+
     dedupeAssignmentsWithAI().then(() => renderAll()).finally(() => {
       // Stop scan animations
       const btn = document.getElementById('btn-scan');
@@ -232,6 +258,7 @@ function bindSettings() {
       apiKeyInput.value = result.groqApiKey;
       apiKeyInput.placeholder = '••••••••••••••••••••' + result.groqApiKey.slice(-4);
     }
+    await highlightCurrentTheme();
     overlay.classList.remove('hidden');
   });
 
@@ -258,6 +285,32 @@ function bindSettings() {
     await renderAll();
     showKeyStatus('✓ Tasks cleared', 'success');
   });
+
+  // ── Theme picker ──
+  const picker = document.getElementById('theme-picker');
+  const themeNames = { orange: 'Orange', blue: 'Blue', green: 'Green', purple: 'Purple', pink: 'Pink', teal: 'Teal', warm: 'Warm', moon: 'Moon' };
+
+  Object.entries(THEMES).forEach(([name, t]) => {
+    const swatch = document.createElement('button');
+    swatch.className = 'theme-swatch';
+    swatch.dataset.theme = name;
+    swatch.title = themeNames[name];
+    swatch.style.background = `hsl(${t.accentH}, ${t.accentS}%, ${t.accentL}%)`;
+    swatch.addEventListener('click', async () => {
+      await chrome.storage.local.set({ [THEME_KEY]: name });
+      applyTheme(name);
+      picker.querySelectorAll('.theme-swatch').forEach(s => s.classList.remove('active'));
+      swatch.classList.add('active');
+    });
+    picker.appendChild(swatch);
+  });
+
+  async function highlightCurrentTheme() {
+    const current = await getStoredTheme();
+    picker.querySelectorAll('.theme-swatch').forEach(s => {
+      s.classList.toggle('active', s.dataset.theme === current);
+    });
+  }
 
   function showKeyStatus(msg, type) {
     statusEl.textContent = msg;
