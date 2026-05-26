@@ -1,7 +1,7 @@
 {
   "manifest_version": 3,
   "name": "Activify - Student Planner",
-  "version": "1.2.1",
+  "version": "1.2.2",
   "description": "Scan school platforms on demand, organize assignments, and build a daily study plan with AI.",
 
   "permissions": [
@@ -15,8 +15,13 @@
     "https://classroom.google.com/*",
     "https://*.instructure.com/*",
     "https://*.schoology.com/*",
-    "https://api.groq.com/*"
+    "https://api.groq.com/*",
+    "https://*.posthog.com/*"
   ],
+
+  "content_security_policy": {
+    "extension_pages": "script-src 'self'; object-src 'self'; connect-src 'self' https://*.posthog.com https://*.supabase.co https://api.groq.com;"
+  },
 
   "background": {
     "service_worker": "background/service_worker.js",

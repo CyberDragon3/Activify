@@ -1,6 +1,4 @@
 /* ── Tokens ──────────────────────────────────────────────────────────────── */
-@import url('https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@400;500;600;700&display=swap');
-
 :root {
   --accent-h:    12;
   --accent-s:    94%;
@@ -34,8 +32,8 @@
   --radius-sm:   10px;
   --shadow:      0 18px 40px rgba(0,0,0,0.30);
   --shadow-glow: 0 14px 30px hsl(var(--accent-h), var(--accent-s), var(--accent-l), 0.13);
-  --font-body:   'Space Grotesk', system-ui, sans-serif;
-  --font-display:'Space Grotesk', system-ui, sans-serif;
+  --font-body:   system-ui, sans-serif;
+  --font-display:system-ui, sans-serif;
   --transition:  0.18s ease;
 }
 

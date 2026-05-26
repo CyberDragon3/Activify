@@ -5,15 +5,17 @@
   "main": "index.js",
   "scripts": {
     "test": "echo \"Error: no test specified\" && exit 1",
-    "build": "esbuild shared/storage.js --bundle --outfile=shared/storage.bundle.js --format=esm --platform=browser"
+    "build:storage": "esbuild shared/storage.js --bundle --outfile=shared/storage.bundle.js --format=esm --platform=browser",
+    "build:analytics": "esbuild shared/analytics.js --bundle --outfile=shared/analytics.bundle.js --format=esm --platform=browser",
+    "build": "npm run build:storage && npm run build:analytics"
   },
   "keywords": [],
   "author": "",
   "license": "ISC",
-  "dependencies": {
-    "./supabase-lib.js": "^2.99.3"
-  },
   "devDependencies": {
     "esbuild": "^0.27.4"
+  },
+  "dependencies": {
+    "posthog-js": "^1.376.0"
   }
 }

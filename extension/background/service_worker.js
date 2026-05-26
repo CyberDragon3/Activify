@@ -7,10 +7,23 @@ import {
   getCurrentUser 
 } from '../shared/storage.js';
 
-chrome.runtime.onInstalled.addListener(() => {
+import { initPostHog } from '../shared/analytics.bundle.js';
+
+let analytics = null;
+
+async function getAnalytics() {
+  if (!analytics) analytics = await initPostHog('background');
+  return analytics;
+}
+
+chrome.runtime.onInstalled.addListener(async () => {
+  const ph = await getAnalytics();
+  ph.capture('Extension Installed');
 });
 
-chrome.runtime.onStartup.addListener(() => {
+chrome.runtime.onStartup.addListener(async () => {
+  const ph = await getAnalytics();
+  ph.capture('Extension Started');
 });
 
 chrome.action.onClicked.addListener((tab) => {
@@ -124,8 +137,10 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
       if (!newAssignments) {
         console.warn(`[Activify] AI parsing failed or returned null for ${source}`);
       } else {
-        await mergeAssignments(newAssignments, accountKey, url); 
+        await mergeAssignments(newAssignments, accountKey, url);
       }
+      const ph = await getAnalytics();
+      ph.capture('Scan Performed');
       chrome.runtime.sendMessage({ type: 'ACTIVIFY_REFRESH' }).catch(() => {});
       sendResponse({ ok: true });
     };
