@@ -41,24 +41,41 @@ async function parseAssignmentsWithAI(rawText, source) {
 
   const now = new Date();
   const pad = n => String(n).padStart(2, '0');
-  const todayDate = `${now.getFullYear()}-${pad(now.getMonth() + 1)}-${pad(now.getDate())}`;
-  const tomorrow = new Date(now);
-  tomorrow.setDate(tomorrow.getDate() + 1);
-  const tomorrowDate = `${tomorrow.getFullYear()}-${pad(tomorrow.getMonth() + 1)}-${pad(tomorrow.getDate())}`;
+  const days = ['Sunday','Monday','Tuesday','Wednesday','Thursday','Friday','Saturday'];
+  const yyyy = now.getFullYear();
+  const mm = now.getMonth() + 1;
+  const dd = now.getDate();
+  const todayDate = `${yyyy}-${pad(mm)}-${pad(dd)}`;
+  const todayName = days[now.getDay()];
 
-  const systemPrompt = `You are a school assignment extractor. TODAY IS ${todayDate}.
+  // Pre-process rawText: replace relative day names with actual dates
+  // so the AI never needs to interpret "Today" / "Tomorrow" / weekday names
+  const dayNameToDate = { Today: todayDate, today: todayDate };
+  for (let i = 0; i < 7; i++) {
+    const d = new Date(now);
+    d.setDate(d.getDate() + i);
+    const k = days[d.getDay()];
+    dayNameToDate[k] = `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}`;
+  }
+  let cleanText = rawText;
+  for (const name of Object.keys(dayNameToDate).sort((a, b) => b.length - a.length)) {
+    cleanText = cleanText.replace(new RegExp(`\\b${name}\\b`, 'g'), dayNameToDate[name]);
+  }
+
+
+
+  const systemPrompt = `You are a school assignment extractor. Today is ${todayName}, ${todayDate}.
 
 CRITICAL RULES — violating any rule means a wrong answer:
 1. Output ONLY valid JSON: { "assignments": [ { "title": "...", "dueDate": "YYYY-MM-DD", "course": "...", "url": "..." } ] }
 2. ONLY extract assignments EXPLICITLY visible in the text. Do NOT invent, infer, or guess any assignment.
 3. SKIP any item that says "Done", "Turned In", "Graded", "No due date", or has no clear title.
 4. SKIP any assignment whose due date is BEFORE ${todayDate} (already past).
-5. "Tomorrow" = ${tomorrowDate}. Year is always 2026 if not stated.
+5. Year is always 2026 if not stated.
 6. If you are unsure about a due date, set dueDate to null — do NOT guess.
 7. If no assignments found, return { "assignments": [] }.
 8. The "course" field should be the class/subject name, not a teacher name.
-9. IMPORTANT: Assignment titles often contain date ranges like "3/30 - 4/2" or "Week 13". These are just the assignment NAME, NOT the due date. Always use the separately listed due date/time (e.g. "Today, 10:00 PM", "Wednesday, 8:00 PM") as the dueDate, never the dates inside the title.
-10. "Today" = ${todayDate}. For named days like "Wednesday", calculate the actual calendar date relative to today.`;
+9. Assignment titles often contain date ranges like "3/30 - 4/2" or "Week 13". These are just the assignment NAME, NOT the due date. Always use the separately listed due date/time as the dueDate, never the dates inside the title.`;
 
   const controller = new AbortController();
   const timeoutId = setTimeout(() => controller.abort(), 25000);
@@ -74,7 +91,7 @@ CRITICAL RULES — violating any rule means a wrong answer:
         model: 'llama-3.3-70b-versatile',
         messages: [
           { role: 'system', content: systemPrompt },
-          { role: 'user', content: `Extract assignments from this school page content:\n\n${rawText.slice(0, 7000)}` }
+          { role: 'user', content: `Extract assignments from this school page content:\n\n${cleanText.slice(0, 7000)}` }
         ],
         temperature: 0,
         response_format: { type: 'json_object' }
@@ -177,22 +194,24 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
 });
 
 async function triggerScanOnSchoolSites(activeOnly = false) {
-  const tabs = await chrome.tabs.query(activeOnly ? { active: true } : {});
+  const tabs = await chrome.tabs.query(activeOnly ? { active: true, lastFocusedWindow: true } : {});
   const patterns = [
     /classroom\.google\.com/,
     /\.instructure\.com/,
     /\.schoology\.com/,
   ];
 
-  let triggered = false;
+  let delivered = false;
   for (const tab of tabs) {
     if (!tab.url) continue;
     if (!patterns.some(p => p.test(tab.url))) continue;
 
-    chrome.tabs.sendMessage(tab.id, { type: 'ACTIVIFY_SCAN' }).catch(() => {
-      console.warn(`[Activify] Failed to send ACTIVIFY_SCAN to tab ${tab.id}`);
-    });
-    triggered = true;
+    try {
+      await chrome.tabs.sendMessage(tab.id, { type: 'ACTIVIFY_SCAN' });
+      delivered = true;
+    } catch {
+      // Content script not injected into this tab
+    }
   }
-  return triggered;
+  return delivered;
 }

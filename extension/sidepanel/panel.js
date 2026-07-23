@@ -75,14 +75,13 @@ async function init() {
 // Global listener (outside init)
 chrome.runtime.onMessage.addListener((msg) => {
   if (msg.type === 'ACTIVIFY_REFRESH') {
-
-    dedupeAssignmentsWithAI().then(() => renderAll()).finally(() => {
-      // Stop scan animations
+    renderAll().finally(() => {
       const btn = document.getElementById('btn-scan');
       if (btn) btn.classList.remove('spinning');
       const banner = document.getElementById('scan-banner');
       if (banner) banner.classList.add('hidden');
     });
+    dedupeAssignmentsWithAI().catch(() => {});
   }
 });
 
@@ -223,7 +222,7 @@ function bindScan() {
       // from the service worker via the listener below, not just this callback.
       if (chrome.runtime.lastError || !response || !response.ok) {
         btn.classList.remove('spinning');
-        showScanBanner('Error: Make sure a school site is open', 3000);
+        showScanBanner('Error: Refresh your school tab, then scan again', 4000);
       }
     });
   });
@@ -250,7 +249,7 @@ function bindSettings() {
   const saveKeyBtn = document.getElementById('btn-save-key');
   const apiKeyInput = document.getElementById('field-api-key');
   const statusEl = document.getElementById('api-key-status');
-  const clearTasksBtn = document.getElementById('btn-clear-tasks');
+  const clearAssignBtn = document.getElementById('btn-clear-assignments');
 
   document.getElementById('btn-settings').addEventListener('click', async () => {
     const result = await chrome.storage.local.get('groqApiKey');
@@ -279,11 +278,11 @@ function bindSettings() {
     showKeyStatus('✓ API key saved!', 'success');
   });
 
-  clearTasksBtn.addEventListener('click', async () => {
-    if (!confirm('Clear all tasks? This cannot be undone.')) return;
-    await chrome.storage.local.set({ tasks: [] });
+  clearAssignBtn.addEventListener('click', async () => {
+    if (!confirm('Clear all scanned assignments? This cannot be undone.')) return;
+    await chrome.storage.local.set({ assignments: [] });
     await renderAll();
-    showKeyStatus('✓ Tasks cleared', 'success');
+    showKeyStatus('✓ Assignments cleared', 'success');
   });
 
   // ── Theme picker ──
