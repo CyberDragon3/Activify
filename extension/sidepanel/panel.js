@@ -2,7 +2,7 @@
 import {
   getAssignments, getTasks, upsertTask, deleteTask,
   formatDate, today, parseDate,
-  getCurrentUser, pullFromSupabase, clearAuth, dedupeAssignmentsWithAI,
+  getCurrentUser, pullFromSupabase, clearAuth, clearAssignments, dedupeAssignmentsWithAI,
 } from '../shared/storage.js';
 
 // Expose helper to console for Task 5
@@ -75,13 +75,22 @@ async function init() {
 // Global listener (outside init)
 chrome.runtime.onMessage.addListener((msg) => {
   if (msg.type === 'ACTIVIFY_REFRESH') {
-    renderAll().finally(() => {
-      const btn = document.getElementById('btn-scan');
-      if (btn) btn.classList.remove('spinning');
-      const banner = document.getElementById('scan-banner');
-      if (banner) banner.classList.add('hidden');
-    });
+    renderAll();
     dedupeAssignmentsWithAI().catch(() => {});
+  }
+
+  if (msg.type === 'ACTIVIFY_SCAN_RESULT') {
+    const btn = document.getElementById('btn-scan');
+    if (btn) btn.classList.remove('spinning');
+
+    if (msg.status === 'success') {
+      renderAll();
+      showScanBanner(`${msg.count} assignment${msg.count === 1 ? '' : 's'} added`, 3500);
+    } else if (msg.status === 'empty') {
+      showScanBanner('No upcoming assignments found on this page.', 4000);
+    } else {
+      showScanBanner(msg.error || 'Scan failed. Check your Groq API key and try again.', 5000);
+    }
   }
 });
 
@@ -254,7 +263,7 @@ function bindSettings() {
   document.getElementById('btn-settings').addEventListener('click', async () => {
     const result = await chrome.storage.local.get('groqApiKey');
     if (result.groqApiKey) {
-      apiKeyInput.value = result.groqApiKey;
+      apiKeyInput.value = '';
       apiKeyInput.placeholder = '••••••••••••••••••••' + result.groqApiKey.slice(-4);
     }
     await highlightCurrentTheme();
@@ -280,7 +289,7 @@ function bindSettings() {
 
   clearAssignBtn.addEventListener('click', async () => {
     if (!confirm('Clear all scanned assignments? This cannot be undone.')) return;
-    await chrome.storage.local.set({ assignments: [] });
+    await clearAssignments();
     await renderAll();
     showKeyStatus('✓ Assignments cleared', 'success');
   });
@@ -615,6 +624,12 @@ const CAL_START_HOUR = 6;
 const CAL_END_HOUR   = 23;
 const HOUR_HEIGHT    = 80;
 
+function escapeHtml(value) {
+  const container = document.createElement('div');
+  container.textContent = value;
+  return container.innerHTML;
+}
+
 function buildCalendarGrid(tasks) {
   const wrapper = document.createElement('div');
   wrapper.className = 'cal-wrapper';
@@ -700,7 +715,7 @@ function buildCalendarGrid(tasks) {
     block.style.background = categoryColor(task.category);
     block.style.borderLeftColor = categoryBorderColor(task.category);
     block.innerHTML = `
-      <div class="cal-block-title">${task.title}</div>
+      <div class="cal-block-title">${escapeHtml(task.title)}</div>
       <div class="cal-block-time">${fmtTime(task.startTime)}${duration ? ' · ' + duration + 'min' : ''}</div>
     `;
     block.addEventListener('click', async () => {

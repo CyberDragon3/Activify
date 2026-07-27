@@ -2,7 +2,7 @@ import { useEffect, useState } from 'react';
 import { StatusBar } from 'expo-status-bar';
 import {
   StyleSheet, Text, View, TouchableOpacity,
-  FlatList, ActivityIndicator, TextInput, Platform,
+  AppState, FlatList, ActivityIndicator, RefreshControl, TextInput, Platform,
 } from 'react-native';
 import * as Device from 'expo-device';
 import { createClient } from './supabase-lib.js';
@@ -106,12 +106,29 @@ export default function App() {
     loadData();
   }, [session]);
 
+  useEffect(() => {
+    const subscription = AppState.addEventListener('change', state => {
+      if (state === 'active' && session) loadData();
+    });
+    return () => subscription.remove();
+  }, [session]);
+
   async function loadData() {
-    const todayStr = localDateStr();
-    const { data: taskData } = await supabase.from('tasks').select('*').eq('user_id', session.user.id).gte('date', todayStr).order('start_time');
-    const { data: assignmentData } = await supabase.from('assignments').select('*').eq('user_id', session.user.id).gte('due_date', todayStr).order('due_date');
-    if (taskData) { setTasks(taskData); scheduleTaskReminders(taskData); }
-    if (assignmentData) setAssignments(assignmentData);
+    if (!session) return;
+    try {
+      const todayStr = localDateStr();
+      const { data: taskData, error: taskError } = await supabase.from('tasks').select('*').eq('user_id', session.user.id).gte('date', todayStr).order('start_time');
+      const { data: assignmentData, error: assignmentError } = await supabase.from('assignments').select('*').eq('user_id', session.user.id).gte('due_date', todayStr).order('due_date');
+      if (taskError) throw taskError;
+      if (assignmentError) throw assignmentError;
+      if (taskData) {
+        setTasks(taskData);
+        await scheduleTaskReminders(taskData);
+      }
+      if (assignmentData) setAssignments(assignmentData);
+    } catch (err) {
+      console.warn('[Activify] Could not refresh mobile data:', err.message);
+    }
   }
 
   async function signOut() {
@@ -173,9 +190,16 @@ function SignInScreen() {
 }
 
 function HomeScreen({ tasks, assignments, onRefresh, onSignOut }) {
+  const [refreshing, setRefreshing] = useState(false);
   const todayStr = localDateStr();
   const todayTasks = tasks.filter(t => t.date === todayStr);
   const upcomingAssignments = assignments.slice(0, 5);
+
+  async function handleRefresh() {
+    setRefreshing(true);
+    await onRefresh();
+    setRefreshing(false);
+  }
 
   return (
     <View style={[styles.flex, { backgroundColor: colors.bg }]}>
@@ -189,6 +213,7 @@ function HomeScreen({ tasks, assignments, onRefresh, onSignOut }) {
       <FlatList
         style={styles.flex}
         contentContainerStyle={styles.scroll}
+        refreshControl={<RefreshControl refreshing={refreshing} onRefresh={handleRefresh} tintColor={colors.accent} />}
         data={[]}
         renderItem={null}
         ListHeaderComponent={() => (

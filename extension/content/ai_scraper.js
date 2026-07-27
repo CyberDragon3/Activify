@@ -76,7 +76,14 @@
     return entries;
   }
 
-  function run() {
+  function localDateString() {
+    const now = new Date();
+    const month = String(now.getMonth() + 1).padStart(2, '0');
+    const day = String(now.getDate()).padStart(2, '0');
+    return `${now.getFullYear()}-${month}-${day}`;
+  }
+
+  async function run() {
     const type = getType();
     if (!type) return;
 
@@ -85,7 +92,7 @@
 
     let payload = `SOURCE_TYPE: ${type}\n`;
     payload += `ACCOUNT_KEY: ${accountKey}\n`;
-    payload += `TODAY_IS: ${new Date().toISOString().split('T')[0]}\n\n`;
+    payload += `TODAY_IS: ${localDateString()}\n\n`;
 
     for (const { text, link } of entries) {
       payload += `[ENTRY]: ${text} | LINK: ${link}\n`;
@@ -102,13 +109,17 @@
 
     if (DEBUG) console.log(`[Activify] ${type} (${accountKey}) scraped ${entries.length} entries`);
 
-    chrome.runtime.sendMessage({
-      type: 'ACTIVIFY_AI_DATA_COLLECTED',
-      source: type,
-      accountKey: accountKey,
-      rawText: payload.slice(0, 8500),
-      url: window.location.href,
-    });
+    try {
+      await chrome.runtime.sendMessage({
+        type: 'ACTIVIFY_AI_DATA_COLLECTED',
+        source: type,
+        accountKey: accountKey,
+        rawText: payload.slice(0, 8500),
+        url: window.location.href,
+      });
+    } catch (err) {
+      console.warn('[Activify] Could not send scan data:', err.message);
+    }
   }
 
   chrome.runtime.onMessage.addListener(msg => {

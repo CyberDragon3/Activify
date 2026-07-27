@@ -4826,6 +4826,17 @@ async function getAssignments() {
   const result = await chrome.storage.local.get(KEYS.ASSIGNMENTS);
   return result[KEYS.ASSIGNMENTS] || [];
 }
+async function clearAssignments() {
+  const user = await getCurrentUser();
+  if (user) {
+    const { error } = await supabase2.from("assignments").delete().eq("user_id", user.id);
+    if (error) throw error;
+  }
+  await chrome.storage.local.set({
+    [KEYS.ASSIGNMENTS]: [],
+    [KEYS.LAST_DEDUPE_SIGNATURE]: ""
+  });
+}
 async function dedupeAssignmentsWithAI({ force = false, syncDeleted = true } = {}) {
   const assignments = await getAssignments();
   if (assignments.length < 2) return { changed: false, assignments, removed: [] };
@@ -4923,7 +4934,7 @@ async function mergeAssignments(scraped, accountKey = "default", scanUrl = "") {
   }
   const existing = await getAssignments();
   const source = scraped[0].source;
-  const todayStr = (/* @__PURE__ */ new Date()).toISOString().slice(0, 10);
+  const todayStr = today();
   const normalizedAccountKey = accountKey || "default";
   const isExhaustive = scanUrl.includes("/to-do") || scanUrl.includes("/dashboard") || scanUrl.includes("/planner") || scanUrl.includes("/app/home");
   const coursesInScan = new Set(scraped.map((a) => a.course));
@@ -4937,12 +4948,13 @@ async function mergeAssignments(scraped, accountKey = "default", scanUrl = "") {
     existing.filter((a) => a.source === source && (a.accountKey || "default") === normalizedAccountKey).map((a) => [a.id, a])
   );
   const newAssignments = scraped.map((a) => {
-    const id = makeId(a.source, a.course, a.title);
+    const id = makeId(a.source, a.course, a.title, normalizedAccountKey);
+    const legacyId = makeId(a.source, a.course, a.title);
     return {
       ...a,
       id,
       accountKey: normalizedAccountKey,
-      completed: existingAccountMap[id]?.completed ?? false
+      completed: existingAccountMap[id]?.completed ?? existingAccountMap[legacyId]?.completed ?? false
     };
   });
   const merged = [...otherAssignments, ...newAssignments].filter((a) => !a.dueDate || a.dueDate >= todayStr);
@@ -4954,7 +4966,11 @@ async function mergeAssignments(scraped, accountKey = "default", scanUrl = "") {
   return cleaned;
 }
 async function syncAssignmentsToSupabase(allAssignments, source, accountKey, userId, isExhaustive, coursesInScan) {
-  const { error: deleteError } = await supabase2.from("assignments").delete().eq("user_id", userId).eq("source", source).eq("account_key", accountKey).in("course", isExhaustive ? allAssignments.map((a) => a.course) : coursesInScan);
+  let deleteQuery = supabase2.from("assignments").delete().eq("user_id", userId).eq("source", source).eq("account_key", accountKey);
+  if (!isExhaustive) {
+    deleteQuery = deleteQuery.in("course", coursesInScan);
+  }
+  const { error: deleteError } = await deleteQuery;
   if (deleteError) {
     console.error("[Activify] \u274C Supabase Delete Error:", deleteError.message, deleteError);
     return;
@@ -5109,39 +5125,35 @@ async function pullFromSupabase() {
   }
   if (taskErr) console.error("[Activify] \u274C Supabase Pull Error (Tasks):", taskErr.message, taskErr);
   if (assignErr) console.error("[Activify] \u274C Supabase Pull Error (Assignments):", assignErr.message, assignErr);
-  if (tasks) {
-    if (tasks.length > 0) {
-      const mapped = tasks.map((t) => ({
-        id: t.id,
-        assignmentId: t.assignment_id,
-        title: t.title,
-        date: t.date,
-        startTime: t.start_time,
-        durationMins: t.duration_mins,
-        completed: t.completed,
-        category: t.category,
-        color: t.color
-      }));
-      await chrome.storage.local.set({ [KEYS.TASKS]: mapped });
-    }
+  if (!taskErr && Array.isArray(tasks)) {
+    const mapped = tasks.map((t) => ({
+      id: t.id,
+      assignmentId: t.assignment_id,
+      title: t.title,
+      date: t.date,
+      startTime: t.start_time,
+      durationMins: t.duration_mins,
+      completed: t.completed,
+      category: t.category,
+      color: t.color
+    }));
+    await chrome.storage.local.set({ [KEYS.TASKS]: mapped });
   }
-  if (assignments) {
-    if (assignments.length > 0) {
-      const mapped = assignments.map((a) => ({
-        id: a.id,
-        source: a.source,
-        accountKey: a.account_key || "default",
-        course: a.course,
-        title: a.title,
-        dueDate: a.due_date,
-        dueTime: a.due_time,
-        type: a.type,
-        url: a.url,
-        completed: a.completed,
-        scannedAt: a.scanned_at
-      }));
-      await chrome.storage.local.set({ [KEYS.ASSIGNMENTS]: mapped });
-    }
+  if (!assignErr && Array.isArray(assignments)) {
+    const mapped = assignments.map((a) => ({
+      id: a.id,
+      source: a.source,
+      accountKey: a.account_key || "default",
+      course: a.course,
+      title: a.title,
+      dueDate: a.due_date,
+      dueTime: a.due_time,
+      type: a.type,
+      url: a.url,
+      completed: a.completed,
+      scannedAt: a.scanned_at
+    }));
+    await chrome.storage.local.set({ [KEYS.ASSIGNMENTS]: mapped });
   }
 }
 async function getLastScan() {
@@ -5162,8 +5174,8 @@ async function getSettings() {
 async function saveSettings(settings) {
   await chrome.storage.local.set({ [KEYS.SETTINGS]: settings });
 }
-function makeId(source, course, title) {
-  const str = `${source}:${course}:${title}`;
+function makeId(source, course, title, accountKey = "") {
+  const str = accountKey ? `${source}:${accountKey}:${course}:${title}` : `${source}:${course}:${title}`;
   let hash = 0;
   for (let i = 0; i < str.length; i++) {
     hash = Math.imul(31, hash) + str.charCodeAt(i) | 0;
@@ -5186,6 +5198,7 @@ function today() {
 export {
   batchUpsertTasks,
   clearAiTasks,
+  clearAssignments,
   clearAuth,
   dedupeAssignmentsWithAI,
   deleteTask,

@@ -1,11 +1,4 @@
-import { 
-  getTasks, 
-  getSettings, 
-  setLastScan, 
-  mergeAssignments, 
-  supabase, 
-  getCurrentUser 
-} from '../shared/storage.js';
+import { setLastScan, mergeAssignments, getCurrentUser } from '../shared/storage.js';
 
 import { initPostHog } from '../shared/analytics.bundle.js';
 
@@ -17,14 +10,21 @@ async function getAnalytics() {
 }
 
 chrome.runtime.onInstalled.addListener(async () => {
-  const ph = await getAnalytics();
-  ph.capture('Extension Installed');
+  captureAnalytics('Extension Installed');
 });
 
 chrome.runtime.onStartup.addListener(async () => {
-  const ph = await getAnalytics();
-  ph.capture('Extension Started');
+  captureAnalytics('Extension Started');
 });
+
+async function captureAnalytics(event) {
+  try {
+    const ph = await getAnalytics();
+    ph.capture(event);
+  } catch (err) {
+    console.warn('[Activify] Analytics event skipped:', err.message);
+  }
+}
 
 chrome.action.onClicked.addListener((tab) => {
   chrome.sidePanel.open({ tabId: tab.id });
@@ -71,7 +71,7 @@ CRITICAL RULES — violating any rule means a wrong answer:
 2. ONLY extract assignments EXPLICITLY visible in the text. Do NOT invent, infer, or guess any assignment.
 3. SKIP any item that says "Done", "Turned In", "Graded", "No due date", or has no clear title.
 4. SKIP any assignment whose due date is BEFORE ${todayDate} (already past).
-5. Year is always 2026 if not stated.
+5. If a visible due date omits its year, use ${yyyy}.
 6. If you are unsure about a due date, set dueDate to null — do NOT guess.
 7. If no assignments found, return { "assignments": [] }.
 8. The "course" field should be the class/subject name, not a teacher name.
@@ -146,52 +146,60 @@ CRITICAL RULES — violating any rule means a wrong answer:
 // --- MESSAGE HANDLER ---
 chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
   if (message.type === 'ACTIVIFY_AI_DATA_COLLECTED') {
-    const { source, rawText, accountKey, url } = message;
-
-    // Helper to process with user
-    const processData = async (user) => {
-      const newAssignments = await parseAssignmentsWithAI(rawText, source);
-      if (!newAssignments) {
-        console.warn(`[Activify] AI parsing failed or returned null for ${source}`);
-      } else {
-        await mergeAssignments(newAssignments, accountKey, url);
-      }
-      const ph = await getAnalytics();
-      ph.capture('Scan Performed');
-      chrome.runtime.sendMessage({ type: 'ACTIVIFY_REFRESH' }).catch(() => {});
-      sendResponse({ ok: true });
-    };
-
-    // Try getting user immediately, then retry once after 1.5s if null
-    getCurrentUser().then(async user => {
-      if (user) {
-        await processData(user);
-      } else {
-        setTimeout(async () => {
-          const userRetry = await getCurrentUser();
-          if (userRetry) {
-            await processData(userRetry);
-          } else {
-            console.error('[Activify] No user found in background script after retry. Are you logged in?');
-            sendResponse({ ok: false, error: 'No user' });
-          }
-        }, 1500);
-      }
-    }).catch(err => {
-      console.error('[Activify] Error in message handler:', err);
-      sendResponse({ ok: false });
-    });
+    (async () => {
+      const result = await processCollectedAssignments(message);
+      chrome.runtime.sendMessage({ type: 'ACTIVIFY_SCAN_RESULT', ...result }).catch(() => {});
+      if (result.ok) chrome.runtime.sendMessage({ type: 'ACTIVIFY_REFRESH' }).catch(() => {});
+      sendResponse(result);
+    })();
 
     return true; // Keep channel open
   }
 
   if (message.type === 'ACTIVIFY_REQUEST_SCAN') {
-    triggerScanOnSchoolSites(true).then((triggered) => {
-      sendResponse({ ok: triggered });
-    });
+    (async () => {
+      try {
+        sendResponse({ ok: await triggerScanOnSchoolSites(true) });
+      } catch (err) {
+        console.error('[Activify] Could not request scan:', err);
+        sendResponse({ ok: false });
+      }
+    })();
     return true;
   }
 });
+
+async function processCollectedAssignments({ source, rawText, accountKey, url }) {
+  try {
+    let user = await getCurrentUser();
+    if (!user) {
+      await new Promise(resolve => setTimeout(resolve, 1500));
+      user = await getCurrentUser();
+    }
+
+    if (!user) {
+      console.error('[Activify] No user found in background script after retry. Are you logged in?');
+      return { ok: false, status: 'error', error: 'Sign in to Activify before scanning.' };
+    }
+
+    const newAssignments = await parseAssignmentsWithAI(rawText, source);
+    if (!newAssignments) {
+      return { ok: false, status: 'error', error: 'Could not analyze this page. Check your Groq API key and try again.' };
+    }
+
+    if (newAssignments.length === 0) {
+      return { ok: true, status: 'empty', count: 0 };
+    }
+
+    await mergeAssignments(newAssignments, accountKey, url);
+    await setLastScan(source);
+    captureAnalytics('Scan Performed');
+    return { ok: true, status: 'success', count: newAssignments.length };
+  } catch (err) {
+    console.error('[Activify] Error while processing scan:', err);
+    return { ok: false, status: 'error', error: 'Could not save scanned assignments. Try again.' };
+  }
+}
 
 async function triggerScanOnSchoolSites(activeOnly = false) {
   const tabs = await chrome.tabs.query(activeOnly ? { active: true, lastFocusedWindow: true } : {});
